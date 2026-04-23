@@ -1,0 +1,34 @@
+{
+    "name": "dorvianes/openwatch",
+    "description": "OpenWatch: HTTP request monitoring package for Laravel",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Dorvianes\\OpenWatch\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Dorvianes\\OpenWatch\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Dorvianes\\OpenWatch\\OpenWatchServiceProvider"
+            ],
+            "aliases": {
+                "OpenWatch": "Dorvianes\\OpenWatch\\Facades\\OpenWatch"
+            }
+        }
+    },
+    "require": {
+        "php": "^8.2",
+        "illuminate/support": "^11.0|^12.0|^13.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.0",
+        "illuminate/http": "13.0"
+    }
+}
