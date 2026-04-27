@@ -14,6 +14,29 @@ Laravel package that automatically records HTTP requests and exceptions and ship
 
 ## Installation
 
+### Option A — Install directly from GitHub (without Packagist)
+
+Add the repository to your application's `composer.json`:
+
+```json
+{
+  "repositories": [
+    {
+      "type": "vcs",
+      "url": "https://github.com/dorvianes/openwatch.git"
+    }
+  ]
+}
+```
+
+Then require the package:
+
+```bash
+composer require dorvianes/openwatch:^0.1.0
+```
+
+### Option B — If the package is available through Packagist later
+
 ```bash
 composer require dorvianes/openwatch
 ```
