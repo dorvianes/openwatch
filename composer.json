@@ -1,7 +1,19 @@
 {
     "name": "dorvianes/openwatch",
-    "description": "OpenWatch: HTTP request monitoring package for Laravel",
+    "description": "Remote monitoring package for Laravel applications using OpenWatch",
     "type": "library",
+    "keywords": [
+        "laravel",
+        "monitoring",
+        "observability",
+        "telemetry",
+        "openwatch"
+    ],
+    "homepage": "https://github.com/dorvianes/openwatch",
+    "support": {
+        "issues": "https://github.com/dorvianes/openwatch/issues",
+        "source": "https://github.com/dorvianes/openwatch"
+    },
     "license": "MIT",
     "autoload": {
         "psr-4": {
