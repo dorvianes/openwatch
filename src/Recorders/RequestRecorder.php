@@ -2,6 +2,7 @@
 
 namespace Dorvianes\OpenWatch\Recorders;
 
+use Dorvianes\OpenWatch\Support\EventTimestamp;
 use Dorvianes\OpenWatch\Transport\HttpTransport;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -13,7 +14,8 @@ class RequestRecorder
 
     public function record(Request $request, SymfonyResponse $response, float $startTime): void
     {
-        $durationMs = round((microtime(true) - $startTime) * 1000, 2);
+        $finishTime = microtime(true);
+        $durationMs = round(($finishTime - $startTime) * 1000, 2);
 
         $ua = $request->userAgent() ?? '';
         $userAgentClass = $this->classifyUserAgent($ua);
@@ -28,11 +30,15 @@ class RequestRecorder
             'ip'               => $request->ip(),
             'user_agent_class' => $userAgentClass,
             'memory_peak_mb'   => round(memory_get_peak_usage(true) / 1048576, 2),
-            'occurred_at'      => now()->toIso8601String(),
+            // occurred_at reflects when the request started (event time), not send time
+            'occurred_at'      => EventTimestamp::format($startTime),
+            // Nested timestamps — same timezone, monotonically consistent (start ≤ finish)
+            'started_at'       => EventTimestamp::format($startTime),
+            'finished_at'      => EventTimestamp::format($finishTime),
             // Non-canonical metadata — helps the server correlate events to app/env
             'meta'             => [
-                'app_name' => config('app.name'),
-                'app_env'  => config('app.env'),
+                'app_name' => function_exists('config') ? config('app.name') : null,
+                'app_env'  => function_exists('config') ? config('app.env') : null,
             ],
         ];
 

@@ -50,4 +50,46 @@ return [
     | Env: OPENWATCH_TIMEOUT  (default: 0.1 = 100ms)
     */
     'timeout' => env('OPENWATCH_TIMEOUT', 0.1),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Capture Database Queries
+    |--------------------------------------------------------------------------
+    | Set to false to disable query telemetry without removing config.
+    |
+    | Env: OPENWATCH_CAPTURE_QUERIES  (default: true)
+    */
+    'capture_queries' => env('OPENWATCH_CAPTURE_QUERIES', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Slow Query Threshold
+    |--------------------------------------------------------------------------
+    | When set, only queries whose execution time exceeds this threshold
+    | (in milliseconds) are sent to the server. Leave null to send all queries.
+    |
+    | Env: OPENWATCH_SLOW_QUERY_THRESHOLD_MS  (default: null = send all)
+    */
+    'slow_query_threshold_ms' => env('OPENWATCH_SLOW_QUERY_THRESHOLD_MS', null),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Capture Outgoing HTTP Requests
+    |--------------------------------------------------------------------------
+    | Set to false to disable outgoing HTTP request telemetry.
+    |
+    | Env: OPENWATCH_CAPTURE_OUTGOING_REQUESTS  (default: true)
+    */
+    'capture_outgoing_requests' => env('OPENWATCH_CAPTURE_OUTGOING_REQUESTS', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Slow Outgoing Request Threshold
+    |--------------------------------------------------------------------------
+    | When set, only outgoing HTTP requests whose duration exceeds this threshold
+    | (in milliseconds) are sent to the server. Leave null to send all.
+    |
+    | Env: OPENWATCH_SLOW_OUTGOING_REQUEST_THRESHOLD_MS  (default: null = send all)
+    */
+    'slow_outgoing_request_threshold_ms' => env('OPENWATCH_SLOW_OUTGOING_REQUEST_THRESHOLD_MS', null),
 ];

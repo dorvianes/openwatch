@@ -2,8 +2,10 @@
 
 namespace Dorvianes\OpenWatch\Recorders;
 
+use Dorvianes\OpenWatch\Support\EventTimestamp;
 use Dorvianes\OpenWatch\Transport\HttpTransport;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class ExceptionRecorder
@@ -16,8 +18,11 @@ class ExceptionRecorder
 
     public function __construct(private HttpTransport $transport) {}
 
-    public function record(Throwable $exception, Request $request): void
+    public function record(Throwable $exception, ?Request $request = null): void
     {
+        // Capture event time immediately — before any processing that could add delay
+        $capturedAt = EventTimestamp::now();
+
         $payload = [
             'type'    => 'exception',
             'class'   => get_class($exception),
@@ -26,9 +31,10 @@ class ExceptionRecorder
             'line'    => $exception->getLine(),
             'trace'   => $this->buildTrace($exception),
             'snippet' => $this->extractSnippet($exception->getFile(), $exception->getLine()),
-            'request' => $this->buildRequestContext($request),
+            'request' => $request !== null ? $this->buildRequestContext($request) : null,
             'previous' => $this->buildPreviousChain($exception),
-            'occurred_at' => date(\DateTimeInterface::ATOM),
+            // occurred_at reflects when the exception was caught (event time), not send time
+            'occurred_at' => EventTimestamp::format($capturedAt),
             // Non-canonical metadata — helps the server correlate events to app/env
             'meta'        => [
                 'app_name' => function_exists('config') ? config('app.name') : null,
@@ -36,7 +42,22 @@ class ExceptionRecorder
             ],
         ];
 
-        $this->transport->send($payload);
+        $ok = $this->transport->send($payload);
+
+        // Emit a debug-level log when transport rejects with a non-2xx response
+        // so developers can diagnose ingestion key or server issues without noise.
+        if (! $ok) {
+            $httpCode = $this->transport->lastHttpCode();
+            if ($httpCode > 0) {
+                try {
+                    Log::debug('[OpenWatch] Exception transport rejected with HTTP ' . $httpCode, [
+                        'exception_class' => get_class($exception),
+                    ]);
+                } catch (Throwable) {
+                    // Logging not available — stay silent.
+                }
+            }
+        }
     }
 
     // -------------------------------------------------------------------------

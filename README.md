@@ -56,7 +56,37 @@ php artisan openwatch:send-test
 
 A green `✓` confirms the server accepted the event (HTTP 202). If it fails, the command prints a troubleshooting checklist.
 
-### 4. Generate real telemetry
+### 4. Enable exception reporting
+
+Exception capture requires one additional opt-in step in your `bootstrap/app.php`.
+Use the official package helper — it wires into Laravel's exception reporting hook cleanly and never breaks your app if OpenWatch is unavailable:
+
+```php
+use Dorvianes\OpenWatch\Support\RegistersExceptionReporting;
+use Illuminate\Foundation\Application;
+use Illuminate\Foundation\Configuration\Exceptions;
+use Illuminate\Foundation\Configuration\Middleware;
+
+return Application::configure(basePath: dirname(__DIR__))
+    ->withRouting(
+        web: __DIR__.'/../routes/web.php',
+        commands: __DIR__.'/../routes/console.php',
+        health: '/up',
+    )
+    ->withMiddleware(function (Middleware $middleware): void {
+        //
+    })
+    ->withExceptions(function (Exceptions $exceptions): void {
+        RegistersExceptionReporting::register($exceptions);
+    })->create();
+```
+
+`RegistersExceptionReporting::register()`:
+- Resolves the request if one is available (e.g. during an HTTP request), passes `null` otherwise (e.g. CLI commands, queue jobs).
+- Swallows every OpenWatch-side failure — your app's own error reporting continues normally.
+- Does **not** suppress Laravel's default reporting; your logs and error trackers still receive the exception.
+
+### 5. Generate real telemetry
 
 Visit any route in your app — the package will automatically capture the request and send it to the server. No additional code is required.
 

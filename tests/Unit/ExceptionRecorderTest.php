@@ -76,12 +76,14 @@ class ExceptionRecorderTest extends TestCase
         $this->assertSame('short', $capture->payloads[0]['message']);
     }
 
-    public function test_payload_does_not_contain_raw_previous_key(): void
+    public function test_payload_previous_is_null_when_no_chained_exception(): void
     {
         [$recorder, $capture] = $this->makeRecorderWithCapture();
         $recorder->record(new RuntimeException('oops'), $this->makeRequest());
 
-        $this->assertArrayNotHasKey('previous', $capture->payloads[0]);
+        // 'previous' key exists but is null when there is no chained exception
+        $this->assertArrayHasKey('previous', $capture->payloads[0]);
+        $this->assertNull($capture->payloads[0]['previous']);
     }
 
     public function test_payload_includes_trace_as_array(): void
@@ -142,5 +144,76 @@ class ExceptionRecorderTest extends TestCase
 
         // snippet may be null (file may not be readable in test context) but key must exist
         $this->assertArrayHasKey('snippet', $capture->payloads[0]);
+    }
+
+    // -------------------------------------------------------------------------
+    // Null-request support
+    // -------------------------------------------------------------------------
+
+    public function test_record_accepts_null_request_without_crashing(): void
+    {
+        [$recorder, $capture] = $this->makeRecorderWithCapture();
+        $recorder->record(new RuntimeException('no request'), null);
+
+        $this->assertCount(1, $capture->payloads);
+    }
+
+    public function test_payload_request_is_null_when_no_request_given(): void
+    {
+        [$recorder, $capture] = $this->makeRecorderWithCapture();
+        $recorder->record(new RuntimeException('no request'), null);
+
+        $this->assertArrayHasKey('request', $capture->payloads[0]);
+        $this->assertNull($capture->payloads[0]['request']);
+    }
+
+    public function test_payload_type_is_exception_even_with_null_request(): void
+    {
+        [$recorder, $capture] = $this->makeRecorderWithCapture();
+        $recorder->record(new RuntimeException('no request'), null);
+
+        $this->assertSame('exception', $capture->payloads[0]['type']);
+    }
+
+    // -------------------------------------------------------------------------
+    // Canonical timestamp (task 4.1)
+    // -------------------------------------------------------------------------
+
+    public function test_payload_has_occurred_at_key(): void
+    {
+        [$recorder, $capture] = $this->makeRecorderWithCapture();
+        $recorder->record(new RuntimeException('ts'), $this->makeRequest());
+
+        $this->assertArrayHasKey('occurred_at', $capture->payloads[0]);
+    }
+
+    public function test_occurred_at_is_valid_iso8601(): void
+    {
+        [$recorder, $capture] = $this->makeRecorderWithCapture();
+        $recorder->record(new RuntimeException('ts'), $this->makeRequest());
+
+        $value = $capture->payloads[0]['occurred_at'];
+        $this->assertIsString($value);
+        // ISO-8601 with timezone offset: YYYY-MM-DDTHH:MM:SS+00:00
+        $this->assertMatchesRegularExpression(
+            '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/',
+            $value,
+            'occurred_at must be an ISO-8601 string with timezone offset',
+        );
+    }
+
+    public function test_occurred_at_reflects_event_time_not_send_time(): void
+    {
+        [$recorder, $capture] = $this->makeRecorderWithCapture();
+
+        $before = time();
+        $recorder->record(new RuntimeException('timing'), $this->makeRequest());
+        $after = time();
+
+        $occurred = (new \DateTimeImmutable($capture->payloads[0]['occurred_at']))->getTimestamp();
+
+        // occurred_at must fall within the window of the record() call
+        $this->assertGreaterThanOrEqual($before, $occurred, 'occurred_at is before the call started');
+        $this->assertLessThanOrEqual($after + 1, $occurred, 'occurred_at is after the call finished');
     }
 }
