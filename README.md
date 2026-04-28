@@ -123,8 +123,45 @@ Visit any route in your app — the package will automatically capture the reque
 | `token` | `OPENWATCH_TOKEN` | `""` | Ingestion key (per-environment) |
 | `enabled` | `OPENWATCH_ENABLED` | `true` | Master switch |
 | `timeout` | `OPENWATCH_TIMEOUT` | `0.1` | HTTP timeout in seconds (keep ≤ 0.5s) |
+| `batching.enabled` | `OPENWATCH_BATCHING_ENABLED` | `false` | Buffer events and send as a single batch per request |
+| `batching.max_events` | `OPENWATCH_BATCHING_MAX_EVENTS` | `1000` | Maximum events held in memory per request |
+| `batching.async.enabled` | `OPENWATCH_ASYNC_ENABLED` | `false` | Dispatch a Queue Job instead of flushing in-process |
+| `batching.async.connection` | `OPENWATCH_ASYNC_CONNECTION` | `null` | Queue connection (null = app default) |
+| `batching.async.queue` | `OPENWATCH_ASYNC_QUEUE` | `null` | Queue name (null = app default) |
 
 The package **auto-disables** and fails silently when `server_url` or `token` is empty — your app is never affected.
+
+---
+
+## Batching
+
+When `OPENWATCH_BATCHING_ENABLED=true`, events are buffered in memory and sent as a single HTTP POST to `/api/ingest/batch` at the end of each request (or when the PHP process terminates for CLI/jobs).
+
+This reduces network overhead on high-traffic applications compared to the default per-event mode.
+
+### Async batching (Queue Worker)
+
+When both batching and async are enabled, the flush is offloaded to a Laravel Queue Job (`OpenWatchSendBatchJob`) instead of running in-process. This removes all telemetry latency from the request lifecycle.
+
+**Setup:**
+
+```dotenv
+# .env
+OPENWATCH_BATCHING_ENABLED=true
+OPENWATCH_ASYNC_ENABLED=true
+OPENWATCH_ASYNC_CONNECTION=redis       # optional — leave empty for app default
+OPENWATCH_ASYNC_QUEUE=openwatch        # optional — leave empty for default queue
+```
+
+> **IMPORTANT — Queue worker required:**
+> You must run `php artisan queue:work` (or `queue:listen`) in the host application for the Job to be processed. Without a running worker, events will accumulate in the queue but will **not** be delivered to the OpenWatch server.
+
+```bash
+# Start the queue worker in the host app
+php artisan queue:work --queue=openwatch
+```
+
+**Fallback behavior:** If the Job dispatch fails (e.g., Redis is unavailable), the batch is automatically sent synchronously in the same process. Events are never silently dropped.
 
 ---
 

@@ -37,6 +37,10 @@ class OpenWatchServiceProvider extends ServiceProvider
             );
         });
 
+        $this->app->singleton(HttpTransport::class, function ($app) {
+            return $app->make('openwatch.transport');
+        });
+
         $this->app->singleton(EventBuffer::class, function ($app) {
             $cfg = $app['config']['openwatch'];
             $max = (int) ($cfg['batching']['max_events'] ?? 1000);
@@ -46,10 +50,15 @@ class OpenWatchServiceProvider extends ServiceProvider
         $this->app->singleton(BatchFlusher::class, function ($app) {
             $cfg             = $app['config']['openwatch'];
             $batchingEnabled = (bool) ($cfg['batching']['enabled'] ?? false);
+            $asyncConfig     = $cfg['batching']['async'] ?? [];
+
             return new BatchFlusher(
                 $app->make('openwatch.transport'),
                 $app->make(EventBuffer::class),
                 batchingEnabled: $batchingEnabled,
+                asyncEnabled: (bool) ($asyncConfig['enabled'] ?? false),
+                asyncConnection: $asyncConfig['connection'] ?? null,
+                asyncQueue: $asyncConfig['queue'] ?? null,
             );
         });
 

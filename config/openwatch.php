@@ -123,6 +123,28 @@ return [
     'batching' => [
         'enabled'    => env('OPENWATCH_BATCHING_ENABLED', false),
         'max_events' => (int) env('OPENWATCH_BATCHING_MAX_EVENTS', 1000),
+
+        /*
+        |----------------------------------------------------------------------
+        | Async Batch Worker
+        |----------------------------------------------------------------------
+        | When async.enabled is true AND batching.enabled is true, the batch
+        | flush will dispatch a Laravel Queue Job (OpenWatchSendBatchJob) instead
+        | of calling sendBatch() in-process.
+        |
+        | IMPORTANT: You must run `php artisan queue:work` in the host application
+        | for the Job to be processed. Without a running queue worker, events will
+        | accumulate in the queue but never be sent to the OpenWatch server.
+        |
+        | Env: OPENWATCH_ASYNC_ENABLED     (default: false)
+        | Env: OPENWATCH_ASYNC_CONNECTION  (default: null = use default queue connection)
+        | Env: OPENWATCH_ASYNC_QUEUE       (default: null = use default queue name)
+        */
+        'async' => [
+            'enabled'    => env('OPENWATCH_ASYNC_ENABLED', false),
+            'connection' => env('OPENWATCH_ASYNC_CONNECTION', null),
+            'queue'      => env('OPENWATCH_ASYNC_QUEUE', null),
+        ],
     ],
 
     /*
