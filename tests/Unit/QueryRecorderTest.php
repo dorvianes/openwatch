@@ -2,6 +2,7 @@
 
 namespace Dorvianes\OpenWatch\Tests\Unit;
 
+use Dorvianes\OpenWatch\Buffer\EventBuffer;
 use Dorvianes\OpenWatch\Recorders\QueryRecorder;
 use Dorvianes\OpenWatch\Transport\HttpTransport;
 use PHPUnit\Framework\TestCase;
@@ -133,6 +134,85 @@ class QueryRecorderTest extends TestCase
         $recorder = new QueryRecorder($transport);
 
         // Must not throw
+        $this->expectNotToPerformAssertions();
+        $recorder->record($this->fakeQueryEvent());
+    }
+
+    // -------------------------------------------------------------------------
+    // SQL normalization — sync path (task 2.1)
+    // -------------------------------------------------------------------------
+
+    public function test_sync_payload_sql_is_normalized(): void
+    {
+        [$recorder, $capture] = $this->makeRecorderWithCapture();
+
+        $noisySql = "select  *\n from\tusers where id in (?, ?, ?)";
+        $recorder->record($this->fakeQueryEvent($noisySql));
+
+        $this->assertSame('select * from users where id in (?+)', $capture->payloads[0]['sql']);
+    }
+
+    public function test_sync_payload_sql_collapses_whitespace(): void
+    {
+        [$recorder, $capture] = $this->makeRecorderWithCapture();
+
+        $recorder->record($this->fakeQueryEvent("  SELECT  1  "));
+
+        $this->assertSame('SELECT 1', $capture->payloads[0]['sql']);
+    }
+
+    // -------------------------------------------------------------------------
+    // SQL normalization — batched path (task 2.1)
+    // -------------------------------------------------------------------------
+
+    public function test_batched_payload_sql_is_normalized(): void
+    {
+        $spy = new class {
+            public array $payloads = [];
+        };
+        $transport = new class($spy) extends HttpTransport {
+            public function __construct(private readonly object $spy) {}
+            public function send(array $payload): bool
+            {
+                $this->spy->payloads[] = $payload;
+                return true;
+            }
+        };
+
+        $buffer   = new EventBuffer();
+        $recorder = new QueryRecorder($transport, buffer: $buffer, batchingEnabled: true);
+
+        $noisySql = "select  *\n from orders where id in (?, ?, ?)";
+        $recorder->record($this->fakeQueryEvent($noisySql));
+
+        $buffered = $buffer->all();
+        $this->assertCount(1, $buffered);
+        $this->assertSame('select * from orders where id in (?+)', $buffered[0]['sql']);
+    }
+
+    // -------------------------------------------------------------------------
+    // Fail-silent contract — normalization failure (gap lote-2)
+    // -------------------------------------------------------------------------
+
+    public function test_fails_silently_on_normalizer_error(): void
+    {
+        $transport = new class extends HttpTransport {
+            public function __construct() {}
+            public function send(array $payload): bool
+            {
+                return true;
+            }
+        };
+
+        // Subclass that forces the normalizer step to throw
+        $recorder = new class($transport) extends QueryRecorder {
+            protected function normalizeSql(string $sql): string
+            {
+                throw new \RuntimeException('normalizer exploded');
+            }
+        };
+
+        // Must not throw — fail-silent contract covers normalizer failures too
         $this->expectNotToPerformAssertions();
         $recorder->record($this->fakeQueryEvent());
     }

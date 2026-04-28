@@ -4,6 +4,7 @@ namespace Dorvianes\OpenWatch\Recorders;
 
 use Dorvianes\OpenWatch\Buffer\EventBuffer;
 use Dorvianes\OpenWatch\Support\EventTimestamp;
+use Dorvianes\OpenWatch\Support\SqlNormalizer;
 use Dorvianes\OpenWatch\Transport\HttpTransport;
 
 class QueryRecorder
@@ -41,7 +42,7 @@ class QueryRecorder
 
             $payload = [
                 'type'        => 'query',
-                'sql'         => $event->sql,
+                'sql'         => $this->normalizeSql($event->sql),
                 'connection'  => $event->connectionName,
                 'duration_ms' => $durationMs,
                 // occurred_at reflects when the query fired (event time), not send time
@@ -60,5 +61,16 @@ class QueryRecorder
         } catch (\Throwable) {
             // Fail silently — never break the client application
         }
+    }
+
+    /**
+     * Normalize a raw SQL string via SqlNormalizer.
+     *
+     * Extracted as a protected method to allow test doubles to simulate
+     * normalization failures while keeping the fail-silent contract testable.
+     */
+    protected function normalizeSql(string $sql): string
+    {
+        return SqlNormalizer::normalize($sql);
     }
 }
