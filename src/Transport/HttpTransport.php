@@ -63,6 +63,42 @@ class HttpTransport
     }
 
     /**
+     * Send multiple events in a single HTTP POST to /api/ingest/batch.
+     *
+     * Returns false immediately (no-op) when:
+     *  - serverUrl or token are not configured
+     *  - the events list is empty
+     *
+     * @param  array<int, array<string, mixed>> $events
+     */
+    public function sendBatch(array $events): bool
+    {
+        if (empty($this->serverUrl) || empty($this->token)) {
+            return false;
+        }
+
+        if (empty($events)) {
+            return false;
+        }
+
+        try {
+            $ch = curl_init();
+
+            curl_setopt_array($ch, $this->buildBatchCurlOptions($events));
+
+            curl_exec($ch);
+            $this->lastHttpCode  = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $this->lastCurlError = curl_error($ch);
+            curl_close($ch);
+
+            return $this->lastHttpCode === 202;
+        } catch (Throwable $e) {
+            $this->lastCurlError = $e->getMessage();
+            return false;
+        }
+    }
+
+    /**
      * Builds the cURL options array for a given payload.
      *
      * Extracted as a protected method so unit tests can verify the exact mapping
@@ -79,6 +115,30 @@ class HttpTransport
             CURLOPT_URL               => rtrim($this->serverUrl, '/') . '/api/ingest',
             CURLOPT_POST              => true,
             CURLOPT_POSTFIELDS        => json_encode($payload),
+            CURLOPT_HTTPHEADER        => [
+                'Content-Type: application/json',
+                'Accept: application/json',
+                'Authorization: Bearer ' . $this->token,
+            ],
+            CURLOPT_RETURNTRANSFER    => true,
+            CURLOPT_TIMEOUT_MS        => (int) ($this->timeout * 1000),
+            CURLOPT_CONNECTTIMEOUT_MS => (int) ($this->connectTimeout * 1000),
+        ];
+    }
+
+    /**
+     * Builds the cURL options array for a batch payload targeting /api/ingest/batch.
+     * Payload structure: { "events": [...] }
+     *
+     * @param  array<int, array<string, mixed>> $events
+     * @return array<int, mixed>
+     */
+    protected function buildBatchCurlOptions(array $events): array
+    {
+        return [
+            CURLOPT_URL               => rtrim($this->serverUrl, '/') . '/api/ingest/batch',
+            CURLOPT_POST              => true,
+            CURLOPT_POSTFIELDS        => json_encode(['events' => $events]),
             CURLOPT_HTTPHEADER        => [
                 'Content-Type: application/json',
                 'Accept: application/json',

@@ -2,6 +2,7 @@
 
 namespace Dorvianes\OpenWatch\Recorders;
 
+use Dorvianes\OpenWatch\Buffer\EventBuffer;
 use Dorvianes\OpenWatch\Support\EventTimestamp;
 use Dorvianes\OpenWatch\Transport\HttpTransport;
 
@@ -10,11 +11,17 @@ class OutgoingRequestRecorder
     public function __construct(
         private HttpTransport $transport,
         /** @var string[] */
-        private array $ignoredHosts = [],
+        private array        $ignoredHosts    = [],
+        private ?EventBuffer $buffer          = null,
+        private bool         $batchingEnabled = false,
     ) {}
 
     /**
      * Record an outgoing HTTP request event.
+     *
+     * When batching is enabled and a buffer is provided, the event is pushed
+     * to the buffer for deferred batch delivery.
+     * Otherwise, the event is sent synchronously via transport.
      *
      * Accepts the response object from Laravel's HTTP client plus timing data.
      * Intentionally omits auth headers, request/response bodies, and sensitive params.
@@ -63,7 +70,11 @@ class OutgoingRequestRecorder
                 ],
             ];
 
-            $this->transport->send($payload);
+            if ($this->batchingEnabled && $this->buffer !== null) {
+                $this->buffer->push($payload);
+            } else {
+                $this->transport->send($payload);
+            }
         } catch (\Throwable) {
             // Fail silently — never break the client application
         }

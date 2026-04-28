@@ -293,6 +293,162 @@ class HttpTransportTest extends TestCase
     //   - cURL errno === 28        (CURLE_OPERATION_TIMEDOUT — response phase)
     // -------------------------------------------------------------------------
 
+    // -------------------------------------------------------------------------
+    // sendBatch() — batch endpoint contract (Phase batching lote-1)
+    // -------------------------------------------------------------------------
+
+    /**
+     * sendBatch() must return false without touching the network when
+     * serverUrl or token is empty (mirrors send() early-exit contract).
+     */
+    public function test_send_batch_returns_false_when_server_url_empty(): void
+    {
+        $transport = new HttpTransport(serverUrl: '', token: 'tok', timeout: 0.1);
+
+        $this->assertFalse($transport->sendBatch([['type' => 'query']]));
+    }
+
+    public function test_send_batch_returns_false_when_token_empty(): void
+    {
+        $transport = new HttpTransport(serverUrl: 'https://example.com', token: '', timeout: 0.1);
+
+        $this->assertFalse($transport->sendBatch([['type' => 'query']]));
+    }
+
+    /**
+     * An empty batch is a no-op — returns false without making a network call.
+     */
+    public function test_send_batch_returns_false_for_empty_event_list(): void
+    {
+        $transport = new HttpTransport(serverUrl: 'https://example.com', token: 'tok', timeout: 0.1);
+
+        $this->assertFalse($transport->sendBatch([]));
+    }
+
+    /**
+     * SC-03: sendBatch([]) must NOT perform any HTTP call whatsoever.
+     *
+     * Strategy: subclass HttpTransport and override buildBatchCurlOptions() to
+     * record whether it was ever invoked. An empty batch must short-circuit
+     * BEFORE that method is reached, so the spy flag stays false.
+     */
+    public function test_send_batch_empty_does_not_reach_curl_options_build(): void
+    {
+        $spy = new class extends HttpTransport {
+            public bool $buildBatchCurlOptionsCalled = false;
+
+            public function __construct()
+            {
+                parent::__construct(
+                    serverUrl: 'https://example.com',
+                    token:     'tok',
+                    timeout:   0.1,
+                );
+            }
+
+            protected function buildBatchCurlOptions(array $events): array
+            {
+                $this->buildBatchCurlOptionsCalled = true;
+
+                return parent::buildBatchCurlOptions($events);
+            }
+        };
+
+        $result = $spy->sendBatch([]);
+
+        $this->assertFalse($result, 'sendBatch([]) must return false');
+        $this->assertFalse(
+            $spy->buildBatchCurlOptionsCalled,
+            'SC-03: sendBatch([]) must NOT reach buildBatchCurlOptions() — no HTTP call permitted',
+        );
+    }
+
+    /**
+     * sendBatch() must POST to /api/ingest/batch (not /api/ingest).
+     * We verify the URL via buildBatchCurlOptions(), exposed through a subclass spy
+     * using the same pattern as the existing curlOptionsFor() helper.
+     */
+    public function test_send_batch_targets_batch_endpoint(): void
+    {
+        $transport = new HttpTransport(
+            serverUrl: 'https://example.com',
+            token: 'tok',
+            timeout: 0.1,
+        );
+
+        $opts = $this->batchCurlOptionsFor($transport, [['type' => 'query']]);
+
+        $this->assertSame('https://example.com/api/ingest/batch', $opts[CURLOPT_URL]);
+    }
+
+    /**
+     * sendBatch() payload must be wrapped as {"events":[...]}.
+     */
+    public function test_send_batch_wraps_events_in_events_key(): void
+    {
+        $events = [
+            ['type' => 'query',   'sql' => 'select 1'],
+            ['type' => 'outgoing_request', 'host' => 'api.example.com'],
+        ];
+
+        $transport = new HttpTransport(serverUrl: 'https://example.com', token: 'tok', timeout: 0.1);
+        $opts      = $this->batchCurlOptionsFor($transport, $events);
+
+        $decoded = json_decode($opts[CURLOPT_POSTFIELDS], true);
+
+        $this->assertArrayHasKey('events', $decoded);
+        $this->assertCount(2, $decoded['events']);
+        $this->assertSame('query',            $decoded['events'][0]['type']);
+        $this->assertSame('outgoing_request', $decoded['events'][1]['type']);
+    }
+
+    /**
+     * sendBatch() must include Authorization and Content-Type headers,
+     * same as the single-event send() (reuses auth contract).
+     */
+    public function test_send_batch_includes_authorization_header(): void
+    {
+        $transport = new HttpTransport(serverUrl: 'https://example.com', token: 'secret-token', timeout: 0.1);
+        $opts      = $this->batchCurlOptionsFor($transport, [['type' => 'query']]);
+
+        $this->assertContains('Authorization: Bearer secret-token', $opts[CURLOPT_HTTPHEADER]);
+        $this->assertContains('Content-Type: application/json',     $opts[CURLOPT_HTTPHEADER]);
+    }
+
+    // -------------------------------------------------------------------------
+    // Spy helper for sendBatch curl options
+    // -------------------------------------------------------------------------
+
+    /** @return array<int,mixed> */
+    private function batchCurlOptionsFor(HttpTransport $transport, array $events): array
+    {
+        $spy = new class ($transport) extends HttpTransport {
+            public function __construct(private HttpTransport $inner)
+            {
+                $r = new \ReflectionClass($inner);
+
+                $serverUrl      = $r->getProperty('serverUrl');
+                $token          = $r->getProperty('token');
+                $timeout        = $r->getProperty('timeout');
+                $connectTimeout = $r->getProperty('connectTimeout');
+
+                parent::__construct(
+                    serverUrl:      $serverUrl->getValue($inner),
+                    token:          $token->getValue($inner),
+                    timeout:        $timeout->getValue($inner),
+                    connectTimeout: $connectTimeout->getValue($inner),
+                );
+            }
+
+            public function exposeBatchCurlOptions(array $events): array
+            {
+                return $this->buildBatchCurlOptions($events);
+            }
+        };
+
+        return $spy->exposeBatchCurlOptions($events);
+    }
+
     public function test_send_times_out_on_slow_response_after_successful_connect(): void
     {
         // Open a TCP server on a random loopback port. Non-blocking so it does

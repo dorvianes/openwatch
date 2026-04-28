@@ -109,6 +109,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Batching
+    |--------------------------------------------------------------------------
+    | When enabled, queries and outgoing requests are accumulated in memory
+    | and sent as a single POST to /api/ingest/batch at the end of the request
+    | lifecycle (or when the application terminates for CLI/jobs).
+    |
+    | Default is OFF for safe rollout — enable when ready.
+    |
+    | Env: OPENWATCH_BATCHING_ENABLED  (default: false)
+    | Env: OPENWATCH_BATCHING_MAX_EVENTS  (default: 1000)
+    */
+    'batching' => [
+        'enabled'    => env('OPENWATCH_BATCHING_ENABLED', false),
+        'max_events' => (int) env('OPENWATCH_BATCHING_MAX_EVENTS', 1000),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Ignored Hosts
     |--------------------------------------------------------------------------
     | Hosts that OpenWatch will NOT record outgoing HTTP telemetry for.

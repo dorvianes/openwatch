@@ -4,10 +4,12 @@ namespace Dorvianes\OpenWatch;
 
 use Dorvianes\OpenWatch\Console\SendTestCommand;
 use Dorvianes\OpenWatch\Middleware\RecordRequest;
+use Dorvianes\OpenWatch\Buffer\EventBuffer;
 use Dorvianes\OpenWatch\Recorders\ExceptionRecorder;
 use Dorvianes\OpenWatch\Recorders\OutgoingRequestRecorder;
 use Dorvianes\OpenWatch\Recorders\QueryRecorder;
 use Dorvianes\OpenWatch\Recorders\RequestRecorder;
+use Dorvianes\OpenWatch\Support\BatchFlusher;
 use Dorvianes\OpenWatch\Transport\HttpTransport;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\DB;
@@ -35,6 +37,22 @@ class OpenWatchServiceProvider extends ServiceProvider
             );
         });
 
+        $this->app->singleton(EventBuffer::class, function ($app) {
+            $cfg = $app['config']['openwatch'];
+            $max = (int) ($cfg['batching']['max_events'] ?? 1000);
+            return new EventBuffer(maxEvents: $max);
+        });
+
+        $this->app->singleton(BatchFlusher::class, function ($app) {
+            $cfg             = $app['config']['openwatch'];
+            $batchingEnabled = (bool) ($cfg['batching']['enabled'] ?? false);
+            return new BatchFlusher(
+                $app->make('openwatch.transport'),
+                $app->make(EventBuffer::class),
+                batchingEnabled: $batchingEnabled,
+            );
+        });
+
         $this->app->singleton(RequestRecorder::class, function ($app) {
             return new RequestRecorder($app->make('openwatch.transport'));
         });
@@ -44,14 +62,25 @@ class OpenWatchServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(QueryRecorder::class, function ($app) {
-            return new QueryRecorder($app->make('openwatch.transport'));
+            $cfg             = $app['config']['openwatch'];
+            $batchingEnabled = (bool) ($cfg['batching']['enabled'] ?? false);
+            return new QueryRecorder(
+                $app->make('openwatch.transport'),
+                buffer:          $batchingEnabled ? $app->make(EventBuffer::class) : null,
+                batchingEnabled: $batchingEnabled,
+            );
         });
 
         $this->app->singleton(OutgoingRequestRecorder::class, function ($app) {
-            $cfg          = $app['config']['openwatch'];
-            $ignoredHosts = $cfg['ignored_hosts'] ?? [];
-
-            return new OutgoingRequestRecorder($app->make('openwatch.transport'), $ignoredHosts);
+            $cfg             = $app['config']['openwatch'];
+            $ignoredHosts    = $cfg['ignored_hosts'] ?? [];
+            $batchingEnabled = (bool) ($cfg['batching']['enabled'] ?? false);
+            return new OutgoingRequestRecorder(
+                $app->make('openwatch.transport'),
+                ignoredHosts:    $ignoredHosts,
+                buffer:          $batchingEnabled ? $app->make(EventBuffer::class) : null,
+                batchingEnabled: $batchingEnabled,
+            );
         });
 
         $this->app->singleton(SendTestCommand::class, function ($app) {
@@ -77,6 +106,7 @@ class OpenWatchServiceProvider extends ServiceProvider
         $this->bootRequestRecorder();
         $this->bootQueryRecorder();
         $this->bootOutgoingRequestRecorder();
+        $this->bootCliFlush();
     }
 
     /**
@@ -129,6 +159,14 @@ class OpenWatchServiceProvider extends ServiceProvider
         $router = $this->app->make(Router::class);
         $router->pushMiddlewareToGroup('web', RecordRequest::class);
         $router->pushMiddlewareToGroup('api', RecordRequest::class);
+
+        // Bind RecordRequest with the BatchFlusher so terminate() triggers flush
+        $this->app->singleton(RecordRequest::class, function ($app) {
+            return new RecordRequest(
+                $app->make(RequestRecorder::class),
+                $app->make(BatchFlusher::class),
+            );
+        });
     }
 
     private function bootQueryRecorder(): void
@@ -201,6 +239,28 @@ class OpenWatchServiceProvider extends ServiceProvider
                     return $response;
                 });
             };
+        });
+    }
+
+    /**
+     * Register a terminating callback for CLI commands and queued jobs.
+     * When batching is enabled, this ensures events are flushed at the end
+     * of any non-HTTP execution (artisan commands, queue workers per-job).
+     */
+    private function bootCliFlush(): void
+    {
+        $cfg = $this->app['config']['openwatch'];
+
+        if (! ($cfg['batching']['enabled'] ?? false)) {
+            return;
+        }
+
+        $this->app->terminating(function () {
+            try {
+                $this->app->make(BatchFlusher::class)->flush();
+            } catch (\Throwable) {
+                // Silent failure — never break the host application
+            }
         });
     }
 }
