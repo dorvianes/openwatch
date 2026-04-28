@@ -1,5 +1,7 @@
 <?php
 
+use Dorvianes\OpenWatch\Support\ConfigHelper;
+
 return [
     /*
     |--------------------------------------------------------------------------
@@ -53,6 +55,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | HTTP Connect Timeout
+    |--------------------------------------------------------------------------
+    | Maximum seconds to wait for the TCP connection to the OpenWatch server.
+    | When null, defaults to the total timeout value (safe default).
+    | Must be ≤ timeout — if set higher it is clamped automatically.
+    |
+    | Env: OPENWATCH_CONNECT_TIMEOUT  (default: null = same as timeout)
+    */
+    'connect_timeout' => env('OPENWATCH_CONNECT_TIMEOUT', null),
+
+    /*
+    |--------------------------------------------------------------------------
     | Capture Database Queries
     |--------------------------------------------------------------------------
     | Set to false to disable query telemetry without removing config.
@@ -92,4 +106,22 @@ return [
     | Env: OPENWATCH_SLOW_OUTGOING_REQUEST_THRESHOLD_MS  (default: null = send all)
     */
     'slow_outgoing_request_threshold_ms' => env('OPENWATCH_SLOW_OUTGOING_REQUEST_THRESHOLD_MS', null),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Ignored Hosts
+    |--------------------------------------------------------------------------
+    | Hosts that OpenWatch will NOT record outgoing HTTP telemetry for.
+    | By default this is auto-derived from server_url so the package never
+    | captures its own self-reporting traffic.
+    |
+    | Set OPENWATCH_IGNORED_HOSTS to a comma-separated list to override.
+    | An empty string disables all host filtering.
+    |
+    | Env: OPENWATCH_IGNORED_HOSTS  (default: auto-derived from server_url)
+    */
+    'ignored_hosts' => ConfigHelper::deriveIgnoredHosts(
+        serverUrl: env('OPENWATCH_SERVER_URL', ''),
+        override:  getenv('OPENWATCH_IGNORED_HOSTS') !== false ? (string) getenv('OPENWATCH_IGNORED_HOSTS') : null,
+    ),
 ];

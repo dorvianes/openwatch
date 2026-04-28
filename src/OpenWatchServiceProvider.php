@@ -28,9 +28,10 @@ class OpenWatchServiceProvider extends ServiceProvider
             $cfg = $app['config']['openwatch'];
 
             return new HttpTransport(
-                serverUrl: $cfg['server_url'] ?? '',
-                token:     $cfg['token'] ?? '',
-                timeout:   (float) ($cfg['timeout'] ?? 0.1),
+                serverUrl:      $cfg['server_url'] ?? '',
+                token:          $cfg['token'] ?? '',
+                timeout:        (float) ($cfg['timeout'] ?? 0.1),
+                connectTimeout: isset($cfg['connect_timeout']) ? (float) $cfg['connect_timeout'] : null,
             );
         });
 
@@ -47,7 +48,10 @@ class OpenWatchServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(OutgoingRequestRecorder::class, function ($app) {
-            return new OutgoingRequestRecorder($app->make('openwatch.transport'));
+            $cfg          = $app['config']['openwatch'];
+            $ignoredHosts = $cfg['ignored_hosts'] ?? [];
+
+            return new OutgoingRequestRecorder($app->make('openwatch.transport'), $ignoredHosts);
         });
 
         $this->app->singleton(SendTestCommand::class, function ($app) {

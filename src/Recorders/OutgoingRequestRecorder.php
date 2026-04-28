@@ -7,7 +7,11 @@ use Dorvianes\OpenWatch\Transport\HttpTransport;
 
 class OutgoingRequestRecorder
 {
-    public function __construct(private HttpTransport $transport) {}
+    public function __construct(
+        private HttpTransport $transport,
+        /** @var string[] */
+        private array $ignoredHosts = [],
+    ) {}
 
     /**
      * Record an outgoing HTTP request event.
@@ -38,6 +42,10 @@ class OutgoingRequestRecorder
 
             $parsed = $this->parseUrl($url);
 
+            if ($this->isIgnoredHost($parsed['host'])) {
+                return;
+            }
+
             $payload = [
                 'type'        => 'outgoing_request',
                 'host'        => $parsed['host'],
@@ -59,6 +67,23 @@ class OutgoingRequestRecorder
         } catch (\Throwable) {
             // Fail silently — never break the client application
         }
+    }
+
+    /**
+     * Returns true when the given host (optionally with port) is in the ignored list.
+     * Matching is case-insensitive.
+     */
+    private function isIgnoredHost(string $host): bool
+    {
+        $normalised = strtolower($host);
+
+        foreach ($this->ignoredHosts as $ignored) {
+            if (strtolower($ignored) === $normalised) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

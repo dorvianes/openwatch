@@ -12,11 +12,28 @@ class HttpTransport
     /** cURL error message from the last send() call. Empty when no error occurred. */
     private string $lastCurlError = '';
 
+    /** Resolved connect timeout (≤ total timeout). */
+    private float $connectTimeout;
+
     public function __construct(
         private string $serverUrl,
         private string $token,
         private float $timeout = 0.1,
-    ) {}
+        ?float $connectTimeout = null,
+    ) {
+        // Clamp: connect timeout must never exceed total timeout
+        $this->connectTimeout = min($connectTimeout ?? $timeout, $timeout);
+    }
+
+    public function timeout(): float
+    {
+        return $this->timeout;
+    }
+
+    public function connectTimeout(): float
+    {
+        return $this->connectTimeout;
+    }
 
     public function send(array $payload): bool
     {
@@ -30,19 +47,7 @@ class HttpTransport
         try {
             $ch = curl_init();
 
-            curl_setopt_array($ch, [
-                CURLOPT_URL               => rtrim($this->serverUrl, '/') . '/api/ingest',
-                CURLOPT_POST              => true,
-                CURLOPT_POSTFIELDS        => json_encode($payload),
-                CURLOPT_HTTPHEADER        => [
-                    'Content-Type: application/json',
-                    'Accept: application/json',
-                    'Authorization: Bearer ' . $this->token,
-                ],
-                CURLOPT_RETURNTRANSFER    => true,
-                CURLOPT_TIMEOUT_MS        => (int) ($this->timeout * 1000),
-                CURLOPT_CONNECTTIMEOUT_MS => (int) ($this->timeout * 1000),
-            ]);
+            curl_setopt_array($ch, $this->buildCurlOptions($payload));
 
             curl_exec($ch);
             $this->lastHttpCode  = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -55,6 +60,34 @@ class HttpTransport
             // Silent failure — never break the client app.
             return false;
         }
+    }
+
+    /**
+     * Builds the cURL options array for a given payload.
+     *
+     * Extracted as a protected method so unit tests can verify the exact mapping
+     * of timeout values to CURLOPT constants without making real network calls:
+     *   - CURLOPT_TIMEOUT_MS        = total timeout (ms) — guards slow server responses
+     *   - CURLOPT_CONNECTTIMEOUT_MS = connect timeout (ms) — guards slow TCP handshakes
+     *
+     * @param  array<string,mixed> $payload
+     * @return array<int,mixed>
+     */
+    protected function buildCurlOptions(array $payload = []): array
+    {
+        return [
+            CURLOPT_URL               => rtrim($this->serverUrl, '/') . '/api/ingest',
+            CURLOPT_POST              => true,
+            CURLOPT_POSTFIELDS        => json_encode($payload),
+            CURLOPT_HTTPHEADER        => [
+                'Content-Type: application/json',
+                'Accept: application/json',
+                'Authorization: Bearer ' . $this->token,
+            ],
+            CURLOPT_RETURNTRANSFER    => true,
+            CURLOPT_TIMEOUT_MS        => (int) ($this->timeout * 1000),
+            CURLOPT_CONNECTTIMEOUT_MS => (int) ($this->connectTimeout * 1000),
+        ];
     }
 
     /**
