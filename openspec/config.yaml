@@ -1,0 +1,59 @@
+# openspec/config.yaml — dorvianes/openwatch (package)
+# Generated: 2026-04-29
+schema: spec-driven
+
+context: |
+  Tech stack: PHP 8.2+, Laravel 11–13 (library package, PSR-4)
+  Architecture: OpenWatchServiceProvider, HttpTransport, Buffer/, Jobs/, Recorders/, Middleware/, Console/, Support/
+  Testing: PHPUnit 11 — Unit suite only (tests/Unit/, 18 test files). No integration/E2E. No static analysis tools.
+  Style: No linter/formatter configured (no phpstan, pint, php-cs-fixer)
+  Persistence: hybrid (openspec/ filesystem + Engram; Engram currently failing due to ambiguous project detection)
+
+strict_tdd: true
+
+testing:
+  runner:
+    framework: PHPUnit 11
+    command: "./vendor/bin/phpunit"
+  layers:
+    unit:
+      available: true
+      tool: "PHPUnit 11"
+      path: "tests/Unit/"
+      files: 18
+    integration:
+      available: false
+    e2e:
+      available: false
+  coverage:
+    available: conditional
+    note: "Requires Xdebug or pcov driver (not configured in phpunit.xml)"
+    command: "./vendor/bin/phpunit --coverage-text"
+  quality_tools:
+    linter: false
+    type_checker: false
+    formatter: false
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+    - Identify affected modules/packages (src/ subdirs)
+  specs:
+    - Use Given/When/Then format for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - Include sequence diagrams for complex flows
+    - Document architecture decisions with rationale
+  tasks:
+    - Group tasks by phase (infrastructure, implementation, testing)
+    - Use hierarchical numbering (1.1, 1.2, etc.)
+    - Keep tasks small enough to complete in one session
+  apply:
+    - Follow existing PHP 8.2+ patterns and conventions
+    - PHPUnit tests MUST be written before or alongside implementation (strict TDD)
+  verify:
+    - Run ./vendor/bin/phpunit before marking complete
+    - Compare implementation against every spec scenario
+  archive:
+    - Warn before merging destructive deltas (large removals)
+    - Sync sdd/{change}/ artifacts into openspec/specs/ main specs

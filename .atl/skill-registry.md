@@ -1,9 +1,13 @@
 # Skill Registry — openwatch (package)
 
-Generated: 2026-04-28
+Generated: 2026-04-29
 
 ## Project Convention Files
-_None found in package root (no AGENTS.md, CLAUDE.md, .cursorrules)._  
+
+| File | Path | Notes |
+|------|------|-------|
+| `MEMORY-BOOTSTRAP.md` | `C:\Proyectos\Dorvian v1\openwatch\package\MEMORY-BOOTSTRAP.md` | Bootstrap conceptual mínimo de memoria para el repo `package`. |
+
 Global conventions apply via `C:\Users\emanu\.config\opencode\AGENTS.md`.
 
 ## Available Skills
@@ -33,8 +37,16 @@ Global conventions apply via `C:\Users\emanu\.config\opencode\AGENTS.md`.
 
 | Priority | Skill | Reason |
 |----------|-------|--------|
-| ⭐⭐⭐ | `sdd-explore` | Pre-planning hardening change |
-| ⭐⭐⭐ | `sdd-propose` | Propose hardening change |
+| ⭐⭐⭐ | `sdd-apply` | Implement PHP 8.2+/Laravel code |
+| ⭐⭐⭐ | `sdd-verify` | Validate against PHPUnit 11 unit tests |
 | ⭐⭐⭐ | `sdd-spec` | Write PHP/Laravel specs |
-| ⭐⭐⭐ | `sdd-apply` | Implement PHP code |
-| ⭐⭐ | `sdd-verify` | Validate against PHPUnit tests |
+| ⭐⭐ | `sdd-propose` | Propose new changes |
+
+## Active Changes
+
+| Change | Status | Artifacts |
+|--------|--------|-----------|
+| `package-async-worker-lote-1` | ✅ Archived | openspec/changes/archive/2026-04-29-package-async-worker-lote-1/ · openspec/specs/batching/ · openspec/specs/config/ |
+| `package-hardening-lote-1` | 🔲 Unknown — sdd/ only, no openspec entry | sdd/: check status |
+| `package-hardening-lote-2` | 🔲 Unknown — sdd/ only | sdd/: check status |
+| `package-transport-batching-lote-1` | 🔲 Unknown — sdd/ only | sdd/: check status |
