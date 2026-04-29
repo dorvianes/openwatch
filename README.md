@@ -49,6 +49,60 @@ php artisan vendor:publish --tag=openwatch-config
 
 ---
 
+## Upgrading from v0.1.0
+
+If your app already uses `dorvianes/openwatch:^0.1.0`, update to the latest compatible patch release with:
+
+```bash
+composer update dorvianes/openwatch
+```
+
+### If you did **not** publish the config file
+
+You do not need to change any PHP config file. The package will use the new defaults automatically.
+
+### If you **did** publish `config/openwatch.php`
+
+Add the new async keys under `batching` manually (recommended), or re-publish the config carefully if you prefer to overwrite your local copy:
+
+```php
+'batching' => [
+    'enabled'    => env('OPENWATCH_BATCHING_ENABLED', false),
+    'max_events' => (int) env('OPENWATCH_BATCHING_MAX_EVENTS', 1000),
+    'async' => [
+        'enabled'    => env('OPENWATCH_ASYNC_ENABLED', false),
+        'connection' => env('OPENWATCH_ASYNC_CONNECTION', null),
+        'queue'      => env('OPENWATCH_ASYNC_QUEUE', null),
+    ],
+],
+```
+
+### New optional environment variables
+
+```dotenv
+OPENWATCH_BATCHING_ENABLED=true
+OPENWATCH_ASYNC_ENABLED=true
+OPENWATCH_ASYNC_CONNECTION=redis
+OPENWATCH_ASYNC_QUEUE=openwatch
+```
+
+- If you do nothing, the previous synchronous behavior remains valid.
+- Async batching is optional and only activates when both batching and async are enabled.
+
+### After updating
+
+```bash
+php artisan optimize:clear
+```
+
+If you enable async batching, restart your queue workers and make sure the host app is running a worker process:
+
+```bash
+php artisan queue:work --queue=openwatch
+```
+
+---
+
 ## Onboarding flow
 
 > Follow these steps in order. The package stays silently disabled until both `OPENWATCH_SERVER_URL` and `OPENWATCH_TOKEN` are set, so it is safe to install first and configure later.
