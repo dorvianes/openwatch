@@ -46,6 +46,24 @@ class RequestRecorderTest extends TestCase
         $this->assertSame('request', $capture->payloads[0]['type']);
     }
 
+    public function test_payload_preserves_flat_wire_contract(): void
+    {
+        [$recorder, $capture] = $this->makeRecorderWithCapture();
+        $request  = Request::create('http://localhost/test', 'GET');
+        $response = new Response('OK', 200);
+
+        $recorder->record($request, $response, microtime(true));
+
+        $payload = $capture->payloads[0];
+
+        $this->assertSame('request', $payload['type']);
+        $this->assertArrayHasKey('occurred_at', $payload);
+        $this->assertArrayHasKey('meta', $payload);
+        $this->assertArrayHasKey('app_name', $payload['meta']);
+        $this->assertArrayHasKey('app_env', $payload['meta']);
+        $this->assertFlatEventHasNoDeferredEnvelopeKeys($payload);
+    }
+
     public function test_payload_includes_method_path_status_duration_occurred_at(): void
     {
         [$recorder, $capture] = $this->makeRecorderWithCapture();
@@ -221,5 +239,12 @@ class RequestRecorderTest extends TestCase
             $capture->payloads[0]['started_at'],
             'occurred_at and started_at must reflect the same event start time',
         );
+    }
+
+    private function assertFlatEventHasNoDeferredEnvelopeKeys(array $payload): void
+    {
+        foreach (['id', 'payload', 'context', 'schema_version'] as $forbiddenKey) {
+            $this->assertArrayNotHasKey($forbiddenKey, $payload);
+        }
     }
 }

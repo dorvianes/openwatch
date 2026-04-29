@@ -41,6 +41,22 @@ class OutgoingRequestRecorderTest extends TestCase
         $this->assertSame('outgoing_request', $capture->payloads[0]['type']);
     }
 
+    public function test_payload_preserves_flat_wire_contract(): void
+    {
+        [$recorder, $capture] = $this->makeRecorderWithCapture();
+        $recorder->record('GET', 'https://api.example.com/users', 200, 50.0);
+
+        $payload = $capture->payloads[0];
+
+        $this->assertSame('outgoing_request', $payload['type']);
+        $this->assertArrayHasKey('occurred_at', $payload);
+        $this->assertArrayHasKey('meta', $payload);
+        $this->assertArrayHasKey('app_name', $payload['meta']);
+        $this->assertArrayHasKey('app_env', $payload['meta']);
+        $this->assertSame('https', $payload['meta']['scheme']);
+        $this->assertFlatEventHasNoDeferredEnvelopeKeys($payload);
+    }
+
     public function test_payload_includes_method_host_path_status_duration_occurred_at(): void
     {
         [$recorder, $capture] = $this->makeRecorderWithCapture();
@@ -197,5 +213,12 @@ class OutgoingRequestRecorderTest extends TestCase
         $recorder->record('POST', 'https://openwatch.example.com:8080/api/ingest', 202, 20.0);
 
         $this->assertEmpty($capture->payloads);
+    }
+
+    private function assertFlatEventHasNoDeferredEnvelopeKeys(array $payload): void
+    {
+        foreach (['id', 'payload', 'context', 'schema_version'] as $forbiddenKey) {
+            $this->assertArrayNotHasKey($forbiddenKey, $payload);
+        }
     }
 }

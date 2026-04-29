@@ -64,6 +64,21 @@ class QueryRecorderTest extends TestCase
         $this->assertSame('query', $capture->payloads[0]['type']);
     }
 
+    public function test_payload_preserves_flat_wire_contract(): void
+    {
+        [$recorder, $capture] = $this->makeRecorderWithCapture();
+        $recorder->record($this->fakeQueryEvent());
+
+        $payload = $capture->payloads[0];
+
+        $this->assertSame('query', $payload['type']);
+        $this->assertArrayHasKey('occurred_at', $payload);
+        $this->assertArrayHasKey('meta', $payload);
+        $this->assertArrayHasKey('app_name', $payload['meta']);
+        $this->assertArrayHasKey('app_env', $payload['meta']);
+        $this->assertFlatEventHasNoDeferredEnvelopeKeys($payload);
+    }
+
     public function test_payload_includes_sql_connection_duration_occurred_at(): void
     {
         [$recorder, $capture] = $this->makeRecorderWithCapture();
@@ -233,5 +248,12 @@ class QueryRecorderTest extends TestCase
             $value,
             'occurred_at must be an ISO-8601 string with timezone offset',
         );
+    }
+
+    private function assertFlatEventHasNoDeferredEnvelopeKeys(array $payload): void
+    {
+        foreach (['id', 'payload', 'context', 'schema_version'] as $forbiddenKey) {
+            $this->assertArrayNotHasKey($forbiddenKey, $payload);
+        }
     }
 }

@@ -396,10 +396,16 @@ class HttpTransportTest extends TestCase
 
         $decoded = json_decode($opts[CURLOPT_POSTFIELDS], true);
 
-        $this->assertArrayHasKey('events', $decoded);
-        $this->assertCount(2, $decoded['events']);
+        $this->assertSame(['events'], array_keys($decoded));
+        $this->assertSame($events, $decoded['events']);
         $this->assertSame('query',            $decoded['events'][0]['type']);
         $this->assertSame('outgoing_request', $decoded['events'][1]['type']);
+
+        foreach ($decoded['events'] as $event) {
+            foreach (['payload', 'context', 'id', 'schema_version'] as $forbiddenKey) {
+                $this->assertArrayNotHasKey($forbiddenKey, $event);
+            }
+        }
     }
 
     /**

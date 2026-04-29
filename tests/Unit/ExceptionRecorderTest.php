@@ -48,6 +48,21 @@ class ExceptionRecorderTest extends TestCase
         $this->assertSame('exception', $capture->payloads[0]['type']);
     }
 
+    public function test_payload_preserves_flat_wire_contract(): void
+    {
+        [$recorder, $capture] = $this->makeRecorderWithCapture();
+        $recorder->record(new RuntimeException('boom'), $this->makeRequest());
+
+        $payload = $capture->payloads[0];
+
+        $this->assertSame('exception', $payload['type']);
+        $this->assertArrayHasKey('occurred_at', $payload);
+        $this->assertArrayHasKey('meta', $payload);
+        $this->assertArrayHasKey('app_name', $payload['meta']);
+        $this->assertArrayHasKey('app_env', $payload['meta']);
+        $this->assertFlatEventHasNoDeferredEnvelopeKeys($payload);
+    }
+
     public function test_payload_includes_class_message_file_line(): void
     {
         [$recorder, $capture] = $this->makeRecorderWithCapture();
@@ -215,5 +230,12 @@ class ExceptionRecorderTest extends TestCase
         // occurred_at must fall within the window of the record() call
         $this->assertGreaterThanOrEqual($before, $occurred, 'occurred_at is before the call started');
         $this->assertLessThanOrEqual($after + 1, $occurred, 'occurred_at is after the call finished');
+    }
+
+    private function assertFlatEventHasNoDeferredEnvelopeKeys(array $payload): void
+    {
+        foreach (['id', 'payload', 'context', 'schema_version'] as $forbiddenKey) {
+            $this->assertArrayNotHasKey($forbiddenKey, $payload);
+        }
     }
 }
