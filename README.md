@@ -47,6 +47,19 @@ Publish the config file:
 php artisan vendor:publish --tag=openwatch-config
 ```
 
+### Release tags for remote Composer consumers
+
+When publishing a distributable batch of package changes, create and push a new SemVer tag (for example `v0.1.1`). Apps consuming the package remotely through Composer, Packagist, or a VCS repository only receive tagged versions that satisfy their version constraint.
+
+Local development with a Composer `path` repository or symlink is different: it reads the local working copy directly and does not depend on Git tags.
+
+Recommended release flow:
+
+1. Merge the package changes into the release branch.
+2. Create a SemVer tag: `git tag vX.Y.Z`.
+3. Push it: `git push origin vX.Y.Z`.
+4. In consuming apps, run `composer update dorvianes/openwatch`.
+
 ---
 
 ## Upgrading from v0.1.0
