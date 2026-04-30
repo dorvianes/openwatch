@@ -64,6 +64,97 @@ class RequestRecorderTest extends TestCase
         $this->assertFlatEventHasNoDeferredEnvelopeKeys($payload);
     }
 
+    public function test_normal_request_does_not_include_livewire_metadata(): void
+    {
+        [$recorder, $capture] = $this->makeRecorderWithCapture();
+        $request  = Request::create('http://localhost/dashboard', 'GET');
+        $response = new Response('OK', 200);
+
+        $recorder->record($request, $response, microtime(true));
+
+        $payload = $capture->payloads[0];
+        $this->assertSame('request', $payload['type']);
+        $this->assertArrayHasKey('meta', $payload);
+        $this->assertArrayNotHasKey('livewire', $payload['meta']);
+    }
+
+    public function test_livewire_request_adds_safe_metadata_under_meta(): void
+    {
+        [$recorder, $capture] = $this->makeRecorderWithCapture();
+        $request = Request::create(
+            'http://localhost/livewire/update',
+            'POST',
+            [],
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json', 'HTTP_X_LIVEWIRE' => 'true'],
+            json_encode([
+                'components' => [
+                    [
+                        'snapshot' => json_encode([
+                            'memo' => ['id' => 'cmp-123', 'name' => 'dashboard.stats'],
+                            'checksum' => 'checksum-value',
+                        ]),
+                        'updates' => ['search' => 'openwatch', 'filters.status' => 'active'],
+                        'calls' => [
+                            ['method' => 'refreshStats', 'params' => ['secret-token']],
+                        ],
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR),
+        );
+        $response = new Response(json_encode(['components' => []], JSON_THROW_ON_ERROR), 200, ['Content-Type' => 'application/json']);
+
+        $recorder->record($request, $response, microtime(true));
+
+        $livewire = $capture->payloads[0]['meta']['livewire'];
+
+        $this->assertSame(true, $livewire['detected']);
+        $this->assertSame('/livewire/update', $livewire['endpoint']);
+        $this->assertSame(1, $livewire['component_count']);
+        $this->assertSame([
+            ['name' => 'dashboard.stats', 'id' => 'cmp-123'],
+        ], $livewire['components']);
+        $this->assertSame(['refreshStats'], $livewire['calls']);
+        $this->assertSame(2, $livewire['updates_count']);
+        $this->assertSame(['search', 'filters.status'], $livewire['update_keys']);
+    }
+
+    public function test_livewire_metadata_does_not_leak_sensitive_payload_values(): void
+    {
+        [$recorder, $capture] = $this->makeRecorderWithCapture();
+        $request = Request::create(
+            'http://localhost/livewire/message/profile.editor',
+            'POST',
+            [],
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json'],
+            json_encode([
+                'fingerprint' => ['id' => 'legacy-id', 'name' => 'profile.editor'],
+                'serverMemo' => ['data' => ['csrf_token' => 'csrf-secret', 'password' => 'plain-secret']],
+                'updates' => [
+                    ['type' => 'callMethod', 'payload' => ['method' => 'save', 'params' => ['top-secret-param']]],
+                    ['type' => 'syncInput', 'payload' => ['name' => 'password', 'value' => 'plain-secret']],
+                ],
+                '_token' => 'csrf-secret',
+            ], JSON_THROW_ON_ERROR),
+        );
+        $response = new Response('<div>full html should not be captured</div>', 200);
+
+        $recorder->record($request, $response, microtime(true));
+
+        $encodedLivewireMetadata = json_encode($capture->payloads[0]['meta']['livewire'], JSON_THROW_ON_ERROR);
+
+        $this->assertStringNotContainsString('csrf-secret', $encodedLivewireMetadata);
+        $this->assertStringNotContainsString('plain-secret', $encodedLivewireMetadata);
+        $this->assertStringNotContainsString('top-secret-param', $encodedLivewireMetadata);
+        $this->assertStringNotContainsString('full html should not be captured', $encodedLivewireMetadata);
+        $this->assertSame(['save'], $capture->payloads[0]['meta']['livewire']['calls']);
+        $this->assertSame(1, $capture->payloads[0]['meta']['livewire']['updates_count']);
+        $this->assertSame(['password'], $capture->payloads[0]['meta']['livewire']['update_keys']);
+    }
+
     public function test_payload_includes_method_path_status_duration_occurred_at(): void
     {
         [$recorder, $capture] = $this->makeRecorderWithCapture();

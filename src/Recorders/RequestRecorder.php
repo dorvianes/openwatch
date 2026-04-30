@@ -3,6 +3,7 @@
 namespace Dorvianes\OpenWatch\Recorders;
 
 use Dorvianes\OpenWatch\Support\EventTimestamp;
+use Dorvianes\OpenWatch\Support\LivewireRequestMetadata;
 use Dorvianes\OpenWatch\Transport\HttpTransport;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -10,6 +11,8 @@ use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class RequestRecorder
 {
+    private LivewireRequestMetadata $livewireMetadata;
+
     public function __construct(private HttpTransport $transport) {}
 
     public function record(Request $request, SymfonyResponse $response, float $startTime): void
@@ -19,6 +22,16 @@ class RequestRecorder
 
         $ua = $request->userAgent() ?? '';
         $userAgentClass = $this->classifyUserAgent($ua);
+
+        $meta = [
+            'app_name' => function_exists('config') ? config('app.name') : null,
+            'app_env'  => function_exists('config') ? config('app.env') : null,
+        ];
+
+        $livewire = $this->livewireMetadata()->parse($request, $response);
+        if ($livewire !== null) {
+            $meta['livewire'] = $livewire;
+        }
 
         $payload = [
             'type'             => 'request',
@@ -36,10 +49,7 @@ class RequestRecorder
             'started_at'       => EventTimestamp::format($startTime),
             'finished_at'      => EventTimestamp::format($finishTime),
             // Non-canonical metadata — helps the server correlate events to app/env
-            'meta'             => [
-                'app_name' => function_exists('config') ? config('app.name') : null,
-                'app_env'  => function_exists('config') ? config('app.env') : null,
-            ],
+            'meta'             => $meta,
         ];
 
         $this->transport->send($payload);
@@ -60,5 +70,10 @@ class RequestRecorder
             return 'browser';
         }
         return 'other';
+    }
+
+    private function livewireMetadata(): LivewireRequestMetadata
+    {
+        return $this->livewireMetadata ??= new LivewireRequestMetadata();
     }
 }
