@@ -252,6 +252,25 @@ Every web and API request after the response is sent:
 | `occurred_at` | ISO 8601 timestamp |
 | `meta.app_name` | Value of `APP_NAME` |
 | `meta.app_env` | Value of `APP_ENV` |
+| `meta.livewire` | Present only for detected Livewire requests; see below |
+
+#### Livewire request metadata
+
+When a request is recognized as a Livewire roundtrip, OpenWatch adds a compact, safe summary under `meta.livewire`. Detection uses the current request shape only: the `X-Livewire` header, `/livewire/...` paths, or known Livewire payload markers such as `components`, `fingerprint`, `serverMemo`, or Livewire update entries.
+
+`meta.livewire` may include:
+
+| Field | Description |
+|-------|-------------|
+| `detected` | Always `true` when the Livewire metadata block is present |
+| `endpoint` | Request path used as the Livewire endpoint signal |
+| `component_count` | Number of component summaries included |
+| `components` | Up to 10 component summaries with optional `name` and `id` strings |
+| `calls` | Up to 20 unique Livewire method names observed in calls/update actions |
+| `updates_count` | Count of unique update keys included after safety limits are applied |
+| `update_keys` | Up to 30 unique updated property names/paths |
+
+Safety boundary: OpenWatch intentionally does **not** capture raw Livewire payloads, component state values, update values, method parameters, CSRF tokens, snapshots, `serverMemo` contents, rendered HTML, or response bodies. Names, ids, method names, and update keys are truncated to bounded strings before being sent.
 
 ### Exceptions
 
