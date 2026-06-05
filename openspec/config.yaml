@@ -1,5 +1,5 @@
 # openspec/config.yaml — dorvianes/openwatch (package)
-# Generated: 2026-04-29
+# Generated: 2026-04-29 | Refreshed: 2026-04-29
 schema: spec-driven
 
 context: |
@@ -7,7 +7,7 @@ context: |
   Architecture: OpenWatchServiceProvider, HttpTransport, Buffer/, Jobs/, Recorders/, Middleware/, Console/, Support/
   Testing: PHPUnit 11 — Unit suite only (tests/Unit/, 18 test files). No integration/E2E. No static analysis tools.
   Style: No linter/formatter configured (no phpstan, pint, php-cs-fixer)
-  Persistence: hybrid (openspec/ filesystem + Engram; Engram currently failing due to ambiguous project detection)
+  Persistence: hybrid (openspec/ filesystem + Engram)
 
 strict_tdd: true
 

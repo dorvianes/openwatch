@@ -1,6 +1,6 @@
 # Skill Registry — openwatch (package)
 
-Generated: 2026-04-29
+Generated: 2026-04-29 | Refreshed: 2026-04-29
 
 ## Project Convention Files
 
@@ -47,6 +47,7 @@ Global conventions apply via `C:\Users\emanu\.config\opencode\AGENTS.md`.
 | Change | Status | Artifacts |
 |--------|--------|-----------|
 | `package-async-worker-lote-1` | ✅ Archived | openspec/changes/archive/2026-04-29-package-async-worker-lote-1/ · openspec/specs/batching/ · openspec/specs/config/ |
-| `package-hardening-lote-1` | 🔲 Unknown — sdd/ only, no openspec entry | sdd/: check status |
-| `package-hardening-lote-2` | 🔲 Unknown — sdd/ only | sdd/: check status |
-| `package-transport-batching-lote-1` | 🔲 Unknown — sdd/ only | sdd/: check status |
+| `package-contract-hardening-v1` | 🔄 Active | openspec/changes/package-contract-hardening-v1/ (proposal + exploration) · sdd/package-contract-hardening-v1/ |
+| `package-hardening-lote-1` | 🔲 Untracked in openspec | sdd/package-hardening-lote-1/ only |
+| `package-hardening-lote-2` | 🔲 Untracked in openspec | sdd/package-hardening-lote-2/ only |
+| `package-transport-batching-lote-1` | 🔲 Untracked in openspec | sdd/package-transport-batching-lote-1/ only |
