@@ -75,6 +75,37 @@ class OutgoingRequestRecorderTest extends TestCase
     // Canonical timestamp (event time, not send time)
     // -------------------------------------------------------------------------
 
+    // -------------------------------------------------------------------------
+    // Meta scheme — per spec, outgoing_request MAY include meta.scheme
+    // -------------------------------------------------------------------------
+
+    public function test_payload_meta_includes_scheme(): void
+    {
+        [$recorder, $capture] = $this->makeRecorderWithCapture();
+
+        $recorder->record('GET', 'https://secure.example.com/api', 200, 10.0);
+        $this->assertSame('https', $capture->payloads[0]['meta']['scheme']);
+
+        $recorder->record('POST', 'http://plain.example.com/api', 201, 20.0);
+        $this->assertSame('http', $capture->payloads[1]['meta']['scheme']);
+    }
+
+    // -------------------------------------------------------------------------
+    // Deferred envelope keys — standalone assertion
+    // -------------------------------------------------------------------------
+
+    public function test_payload_omits_forbidden_envelope_keys(): void
+    {
+        [$recorder, $capture] = $this->makeRecorderWithCapture();
+        $recorder->record('GET', 'https://api.example.com/users', 200, 50.0);
+
+        $this->assertFlatEventHasNoDeferredEnvelopeKeys($capture->payloads[0]);
+    }
+
+    // -------------------------------------------------------------------------
+    // Canonical timestamp (event time, not send time)
+    // -------------------------------------------------------------------------
+
     public function test_occurred_at_is_valid_iso8601(): void
     {
         [$recorder, $capture] = $this->makeRecorderWithCapture();

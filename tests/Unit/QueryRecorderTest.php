@@ -91,6 +91,18 @@ class QueryRecorderTest extends TestCase
         $this->assertArrayHasKey('occurred_at', $payload);
     }
 
+    // -------------------------------------------------------------------------
+    // Deferred envelope keys — standalone assertion
+    // -------------------------------------------------------------------------
+
+    public function test_payload_omits_forbidden_envelope_keys(): void
+    {
+        [$recorder, $capture] = $this->makeRecorderWithCapture();
+        $recorder->record($this->fakeQueryEvent());
+
+        $this->assertFlatEventHasNoDeferredEnvelopeKeys($capture->payloads[0]);
+    }
+
     public function test_payload_does_not_include_bindings(): void
     {
         [$recorder, $capture] = $this->makeRecorderWithCapture();

@@ -408,6 +408,65 @@ class HttpTransportTest extends TestCase
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Batch body shape — standalone, dedicated assertion (task 2.1)
+    // -------------------------------------------------------------------------
+
+    /**
+     * The batch body MUST be exactly { "events": [...] } with no extra
+     * top-level keys or event wrapping. This is a pure structural assertion,
+     * separated from the curl-options integration test above.
+     */
+    public function test_batch_body_is_events_key_only(): void
+    {
+        $events = [
+            ['type' => 'query',   'sql' => 'select 1'],
+            ['type' => 'outgoing_request', 'host' => 'api.example.com'],
+        ];
+
+        $transport = new HttpTransport(serverUrl: 'https://example.com', token: 'tok', timeout: 0.1);
+        $opts      = $this->batchCurlOptionsFor($transport, $events);
+
+        $decoded = json_decode($opts[CURLOPT_POSTFIELDS], true);
+
+        $this->assertIsArray($decoded);
+        $this->assertCount(1, $decoded, 'Batch body must have exactly one top-level key');
+        $this->assertSame(['events'], array_keys($decoded));
+        $this->assertSame($events, $decoded['events'], 'Events must pass through without extra wrapping');
+    }
+
+    // -------------------------------------------------------------------------
+    // Batch event items — forbidden envelope keys (task 2.2)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Each event in the batch events array MUST NOT contain deferred envelope
+     * keys (id, payload, context, schema_version). This assertion is now
+     * standalone rather than mixed into the curl-options test.
+     */
+    public function test_batch_event_items_contain_no_envelope_keys(): void
+    {
+        $events = [
+            ['type' => 'query',   'sql' => 'select 1'],
+            ['type' => 'outgoing_request', 'host' => 'api.example.com'],
+        ];
+
+        $transport = new HttpTransport(serverUrl: 'https://example.com', token: 'tok', timeout: 0.1);
+        $opts      = $this->batchCurlOptionsFor($transport, $events);
+
+        $decoded = json_decode($opts[CURLOPT_POSTFIELDS], true);
+
+        foreach ($decoded['events'] as $event) {
+            foreach (['id', 'payload', 'context', 'schema_version'] as $forbiddenKey) {
+                $this->assertArrayNotHasKey(
+                    $forbiddenKey,
+                    $event,
+                    "Batch event must not contain deferred key '{$forbiddenKey}'",
+                );
+            }
+        }
+    }
+
     /**
      * sendBatch() must include Authorization and Content-Type headers,
      * same as the single-event send() (reuses auth contract).
