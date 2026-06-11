@@ -5,12 +5,14 @@ namespace Dorvianes\OpenWatch\Recorders;
 use Dorvianes\OpenWatch\Buffer\EventBuffer;
 use Dorvianes\OpenWatch\Support\EventTimestamp;
 use Dorvianes\OpenWatch\Support\SqlNormalizer;
+use Dorvianes\OpenWatch\Support\UserContextEnricher;
 use Dorvianes\OpenWatch\Transport\HttpTransport;
 
 class QueryRecorder
 {
     public function __construct(
         private HttpTransport $transport,
+        private UserContextEnricher $enricher,
         private ?EventBuffer  $buffer          = null,
         private bool          $batchingEnabled = false,
     ) {}
@@ -47,10 +49,10 @@ class QueryRecorder
                 'duration_ms' => $durationMs,
                 // occurred_at reflects when the query fired (event time), not send time
                 'occurred_at' => EventTimestamp::format($capturedAt),
-                'meta'        => [
+                'meta'        => $this->enricher->enrich([
                     'app_name' => function_exists('config') ? config('app.name') : null,
                     'app_env'  => function_exists('config') ? config('app.env') : null,
-                ],
+                ]),
             ];
 
             if ($this->batchingEnabled && $this->buffer !== null) {

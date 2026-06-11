@@ -40,12 +40,14 @@ Recorder events MUST remain flat payloads with `type` and `occurred_at` at the t
 ### Requirement: Shared metadata stays in meta
 
 Shared package metadata MAY be asserted only as the current `meta` object. Tests MUST NOT require renaming metadata to `context` or moving event data into a new schema.
+(Previously: Shared package metadata MAY be asserted only as the current meta object.)
 
 #### Scenario: shared app metadata remains current shape
 
 - GIVEN a recorder emits metadata
 - WHEN the payload is inspected
 - THEN `meta.app_name` and `meta.app_env` SHOULD remain under `meta`
+- AND `meta` MAY contain `user_id`, `user_type`, and `ip`
 - AND `outgoing_request` MAY include `meta.scheme`
 
 #### Scenario: Livewire request metadata remains safe and compact

@@ -3,11 +3,26 @@
 namespace Dorvianes\OpenWatch\Tests\Unit;
 
 use Dorvianes\OpenWatch\Recorders\OutgoingRequestRecorder;
+use Dorvianes\OpenWatch\Support\UserContextEnricher;
 use Dorvianes\OpenWatch\Transport\HttpTransport;
 use PHPUnit\Framework\TestCase;
 
 class OutgoingRequestRecorderTest extends TestCase
 {
+    /**
+     * Build a test enricher that returns a fixed context array.
+     */
+    private function makeTestEnricher(?array $context = null): UserContextEnricher
+    {
+        return new class($context) extends UserContextEnricher {
+            public function __construct(private readonly ?array $context) {}
+            public function getUserContext(): array
+            {
+                return $this->context ?? ['user_id' => null, 'user_type' => null, 'ip' => null];
+            }
+        };
+    }
+
     /**
      * @return array{OutgoingRequestRecorder, object}
      */
@@ -30,7 +45,9 @@ class OutgoingRequestRecorderTest extends TestCase
             }
         };
 
-        return [new OutgoingRequestRecorder($transport), $capture];
+        $enricher = $this->makeTestEnricher();
+
+        return [new OutgoingRequestRecorder($transport, enricher: $enricher), $capture];
     }
 
     public function test_payload_has_type_outgoing_request(): void
@@ -164,7 +181,7 @@ class OutgoingRequestRecorderTest extends TestCase
             }
         };
 
-        $recorder = new OutgoingRequestRecorder($transport);
+        $recorder = new OutgoingRequestRecorder($transport, $this->makeTestEnricher());
 
         $this->expectNotToPerformAssertions();
         $recorder->record('GET', 'https://api.example.com/', 200, 50.0);
@@ -203,7 +220,7 @@ class OutgoingRequestRecorderTest extends TestCase
             }
         };
 
-        return [new OutgoingRequestRecorder($transport, $ignoredHosts), $capture];
+        return [new OutgoingRequestRecorder($transport, $this->makeTestEnricher(), ignoredHosts: $ignoredHosts), $capture];
     }
 
     public function test_ignored_host_is_skipped(): void
@@ -244,6 +261,44 @@ class OutgoingRequestRecorderTest extends TestCase
         $recorder->record('POST', 'https://openwatch.example.com:8080/api/ingest', 202, 20.0);
 
         $this->assertEmpty($capture->payloads);
+    }
+
+    // -------------------------------------------------------------------------
+    // User context enrichment
+    // -------------------------------------------------------------------------
+
+    public function test_meta_includes_user_context_fields(): void
+    {
+        $capture = new class {
+            public array $payloads = [];
+        };
+
+        $transport = new class($capture) extends HttpTransport {
+            public function __construct(private readonly object $capture) {}
+            public function send(array $payload): bool
+            {
+                $this->capture->payloads[] = $payload;
+                return true;
+            }
+        };
+
+        $enricher = $this->makeTestEnricher([
+            'user_id'   => '33',
+            'user_type' => 'App\Models\ApiUser',
+            'ip'        => '10.10.10.10',
+        ]);
+
+        $recorder = new OutgoingRequestRecorder($transport, enricher: $enricher);
+        $recorder->record('GET', 'https://api.example.com/users', 200, 50.0);
+
+        $meta = $capture->payloads[0]['meta'];
+
+        $this->assertArrayHasKey('user_id', $meta);
+        $this->assertArrayHasKey('user_type', $meta);
+        $this->assertArrayHasKey('ip', $meta);
+        $this->assertSame('33', $meta['user_id']);
+        $this->assertSame('App\Models\ApiUser', $meta['user_type']);
+        $this->assertSame('10.10.10.10', $meta['ip']);
     }
 
     private function assertFlatEventHasNoDeferredEnvelopeKeys(array $payload): void

@@ -3,6 +3,7 @@
 namespace Dorvianes\OpenWatch\Tests\Unit;
 
 use Dorvianes\OpenWatch\Recorders\ExceptionRecorder;
+use Dorvianes\OpenWatch\Support\UserContextEnricher;
 use Dorvianes\OpenWatch\Transport\HttpTransport;
 use Illuminate\Http\Request;
 use PHPUnit\Framework\TestCase;
@@ -13,6 +14,20 @@ class ExceptionRecorderTest extends TestCase
     private function makeRequest(string $uri = '/test/path', string $method = 'GET'): Request
     {
         return Request::create('http://localhost' . $uri, $method);
+    }
+
+    /**
+     * Build a test enricher that returns a fixed context array.
+     */
+    private function makeTestEnricher(?array $context = null): UserContextEnricher
+    {
+        return new class($context) extends UserContextEnricher {
+            public function __construct(private readonly ?array $context) {}
+            public function getUserContext(): array
+            {
+                return $this->context ?? ['user_id' => null, 'user_type' => null, 'ip' => null];
+            }
+        };
     }
 
     /**
@@ -37,7 +52,9 @@ class ExceptionRecorderTest extends TestCase
             }
         };
 
-        return [new ExceptionRecorder($transport), $capture];
+        $enricher = $this->makeTestEnricher();
+
+        return [new ExceptionRecorder($transport, $enricher), $capture];
     }
 
     public function test_payload_has_type_exception(): void
@@ -230,6 +247,44 @@ class ExceptionRecorderTest extends TestCase
         // occurred_at must fall within the window of the record() call
         $this->assertGreaterThanOrEqual($before, $occurred, 'occurred_at is before the call started');
         $this->assertLessThanOrEqual($after + 1, $occurred, 'occurred_at is after the call finished');
+    }
+
+    // -------------------------------------------------------------------------
+    // User context enrichment
+    // -------------------------------------------------------------------------
+
+    public function test_meta_includes_user_context_fields(): void
+    {
+        $capture = new class {
+            public array $payloads = [];
+        };
+
+        $transport = new class($capture) extends HttpTransport {
+            public function __construct(private readonly object $capture) {}
+            public function send(array $payload): bool
+            {
+                $this->capture->payloads[] = $payload;
+                return true;
+            }
+        };
+
+        $enricher = $this->makeTestEnricher([
+            'user_id'   => '77',
+            'user_type' => 'App\Models\Admin',
+            'ip'        => '172.16.0.1',
+        ]);
+
+        $recorder = new ExceptionRecorder($transport, $enricher);
+        $recorder->record(new RuntimeException('ctx'), $this->makeRequest());
+
+        $meta = $capture->payloads[0]['meta'];
+
+        $this->assertArrayHasKey('user_id', $meta);
+        $this->assertArrayHasKey('user_type', $meta);
+        $this->assertArrayHasKey('ip', $meta);
+        $this->assertSame('77', $meta['user_id']);
+        $this->assertSame('App\Models\Admin', $meta['user_type']);
+        $this->assertSame('172.16.0.1', $meta['ip']);
     }
 
     private function assertFlatEventHasNoDeferredEnvelopeKeys(array $payload): void

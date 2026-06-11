@@ -3,6 +3,7 @@
 namespace Dorvianes\OpenWatch\Tests\Unit;
 
 use Dorvianes\OpenWatch\Buffer\EventBuffer;
+use Dorvianes\OpenWatch\Support\UserContextEnricher;
 use Dorvianes\OpenWatch\Transport\HttpTransport;
 use PHPUnit\Framework\TestCase;
 
@@ -18,6 +19,16 @@ class FlushLifecycleTest extends TestCase
     // -------------------------------------------------------------------------
     // Spy transport for batch send tracking
     // -------------------------------------------------------------------------
+
+    private function makeTestEnricher(): UserContextEnricher
+    {
+        return new class extends UserContextEnricher {
+            public function getUserContext(): array
+            {
+                return ['user_id' => null, 'user_type' => null, 'ip' => null];
+            }
+        };
+    }
 
     /** Returns [transport, capture] */
     private function spyTransport(): array
@@ -140,7 +151,7 @@ class FlushLifecycleTest extends TestCase
         $flusher = new \Dorvianes\OpenWatch\Support\BatchFlusher($transport, $buffer, batchingEnabled: true);
 
         // RecordRequest terminate now accepts an optional flusher
-        $recorder = new \Dorvianes\OpenWatch\Recorders\RequestRecorder($transport);
+        $recorder = new \Dorvianes\OpenWatch\Recorders\RequestRecorder($transport, $this->makeTestEnricher());
         $middleware = new \Dorvianes\OpenWatch\Middleware\RecordRequest($recorder, $flusher);
 
         $request  = new \Illuminate\Http\Request();

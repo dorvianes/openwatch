@@ -3,6 +3,7 @@
 namespace Dorvianes\OpenWatch\Recorders;
 
 use Dorvianes\OpenWatch\Support\EventTimestamp;
+use Dorvianes\OpenWatch\Support\UserContextEnricher;
 use Dorvianes\OpenWatch\Transport\HttpTransport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -16,7 +17,10 @@ class ExceptionRecorder
     /** Lines of context to capture above and below the failing line. */
     private const SNIPPET_CONTEXT_LINES = 7;
 
-    public function __construct(private HttpTransport $transport) {}
+    public function __construct(
+        private HttpTransport $transport,
+        private UserContextEnricher $enricher,
+    ) {}
 
     public function record(Throwable $exception, ?Request $request = null): void
     {
@@ -36,10 +40,10 @@ class ExceptionRecorder
             // occurred_at reflects when the exception was caught (event time), not send time
             'occurred_at' => EventTimestamp::format($capturedAt),
             // Non-canonical metadata — helps the server correlate events to app/env
-            'meta'        => [
+            'meta'        => $this->enricher->enrich([
                 'app_name' => function_exists('config') ? config('app.name') : null,
                 'app_env'  => function_exists('config') ? config('app.env') : null,
-            ],
+            ]),
         ];
 
         $ok = $this->transport->send($payload);

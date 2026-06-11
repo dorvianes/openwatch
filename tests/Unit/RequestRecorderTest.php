@@ -3,6 +3,7 @@
 namespace Dorvianes\OpenWatch\Tests\Unit;
 
 use Dorvianes\OpenWatch\Recorders\RequestRecorder;
+use Dorvianes\OpenWatch\Support\UserContextEnricher;
 use Dorvianes\OpenWatch\Transport\HttpTransport;
 use Illuminate\Http\Request;
 use PHPUnit\Framework\TestCase;
@@ -10,6 +11,20 @@ use Symfony\Component\HttpFoundation\Response;
 
 class RequestRecorderTest extends TestCase
 {
+    /**
+     * Build a test enricher that returns a fixed context array.
+     */
+    private function makeTestEnricher(?array $context = null): UserContextEnricher
+    {
+        return new class($context) extends UserContextEnricher {
+            public function __construct(private readonly ?array $context) {}
+            public function getUserContext(): array
+            {
+                return $this->context ?? ['user_id' => null, 'user_type' => null, 'ip' => null];
+            }
+        };
+    }
+
     /**
      * @return array{RequestRecorder, object}
      */
@@ -32,7 +47,9 @@ class RequestRecorderTest extends TestCase
             }
         };
 
-        return [new RequestRecorder($transport), $capture];
+        $enricher = $this->makeTestEnricher();
+
+        return [new RequestRecorder($transport, $enricher), $capture];
     }
 
     public function test_payload_has_type_request(): void
@@ -330,6 +347,47 @@ class RequestRecorderTest extends TestCase
             $capture->payloads[0]['started_at'],
             'occurred_at and started_at must reflect the same event start time',
         );
+    }
+
+    // -------------------------------------------------------------------------
+    // User context enrichment
+    // -------------------------------------------------------------------------
+
+    public function test_meta_includes_user_context_fields(): void
+    {
+        $capture = new class {
+            public array $payloads = [];
+        };
+
+        $transport = new class($capture) extends HttpTransport {
+            public function __construct(private readonly object $capture) {}
+            public function send(array $payload): bool
+            {
+                $this->capture->payloads[] = $payload;
+                return true;
+            }
+        };
+
+        $enricher = $this->makeTestEnricher([
+            'user_id'   => '42',
+            'user_type' => 'App\Models\User',
+            'ip'        => '10.0.0.55',
+        ]);
+
+        $recorder = new RequestRecorder($transport, $enricher);
+        $request  = Request::create('http://localhost/test', 'GET');
+        $response = new Response('OK', 200);
+
+        $recorder->record($request, $response, microtime(true));
+
+        $meta = $capture->payloads[0]['meta'];
+
+        $this->assertArrayHasKey('user_id', $meta);
+        $this->assertArrayHasKey('user_type', $meta);
+        $this->assertArrayHasKey('ip', $meta);
+        $this->assertSame('42', $meta['user_id']);
+        $this->assertSame('App\Models\User', $meta['user_type']);
+        $this->assertSame('10.0.0.55', $meta['ip']);
     }
 
     private function assertFlatEventHasNoDeferredEnvelopeKeys(array $payload): void

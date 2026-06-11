@@ -4,6 +4,7 @@ namespace Dorvianes\OpenWatch\Tests\Unit;
 
 use Dorvianes\OpenWatch\Recorders\ExceptionRecorder;
 use Dorvianes\OpenWatch\Support\RegistersExceptionReporting;
+use Dorvianes\OpenWatch\Support\UserContextEnricher;
 use Dorvianes\OpenWatch\Transport\HttpTransport;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -29,6 +30,16 @@ use RuntimeException;
  */
 class RegistersExceptionReportingTest extends TestCase
 {
+    private function makeTestEnricher(): UserContextEnricher
+    {
+        return new class extends UserContextEnricher {
+            public function getUserContext(): array
+            {
+                return ['user_id' => null, 'user_type' => null, 'ip' => null];
+            }
+        };
+    }
+
     private function makeRecorderWithCapture(): array
     {
         $capture = new class {
@@ -48,7 +59,9 @@ class RegistersExceptionReportingTest extends TestCase
             }
         };
 
-        return [new ExceptionRecorder($transport), $capture];
+        $enricher = $this->makeTestEnricher();
+
+        return [new ExceptionRecorder($transport, $enricher), $capture];
     }
 
     /**
@@ -177,7 +190,7 @@ class RegistersExceptionReportingTest extends TestCase
             }
         };
 
-        $recorder = new ExceptionRecorder($transport);
+        $recorder = new ExceptionRecorder($transport, $this->makeTestEnricher());
 
         try {
             // Log::debug will fail without a booted app — the recorder must swallow that silently

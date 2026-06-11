@@ -5,6 +5,7 @@ namespace Dorvianes\OpenWatch\Tests\Unit;
 use Dorvianes\OpenWatch\Buffer\EventBuffer;
 use Dorvianes\OpenWatch\Recorders\OutgoingRequestRecorder;
 use Dorvianes\OpenWatch\Recorders\QueryRecorder;
+use Dorvianes\OpenWatch\Support\UserContextEnricher;
 use Dorvianes\OpenWatch\Transport\HttpTransport;
 use PHPUnit\Framework\TestCase;
 
@@ -22,6 +23,16 @@ class RecorderBatchingTest extends TestCase
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    private function makeTestEnricher(): UserContextEnricher
+    {
+        return new class extends UserContextEnricher {
+            public function getUserContext(): array
+            {
+                return ['user_id' => null, 'user_type' => null, 'ip' => null];
+            }
+        };
+    }
 
     /** Spy transport that captures send() calls */
     private function spyTransport(): object
@@ -71,7 +82,7 @@ class RecorderBatchingTest extends TestCase
         $spy    = $this->spyTransport();
         $buffer = new EventBuffer();
 
-        $recorder = new QueryRecorder($spy->transport, buffer: $buffer, batchingEnabled: true);
+        $recorder = new QueryRecorder($spy->transport, $this->makeTestEnricher(), buffer: $buffer, batchingEnabled: true);
         $recorder->record($this->fakeQueryEvent('select * from users', 25.0));
 
         // Event must be in buffer
@@ -87,7 +98,7 @@ class RecorderBatchingTest extends TestCase
         $spy    = $this->spyTransport();
         $buffer = new EventBuffer();
 
-        $recorder = new QueryRecorder($spy->transport, buffer: $buffer, batchingEnabled: false);
+        $recorder = new QueryRecorder($spy->transport, $this->makeTestEnricher(), buffer: $buffer, batchingEnabled: false);
         $recorder->record($this->fakeQueryEvent());
 
         // Buffer must remain empty
@@ -101,7 +112,7 @@ class RecorderBatchingTest extends TestCase
     {
         // Original constructor signature (no buffer, no flag) → synchronous
         $spy      = $this->spyTransport();
-        $recorder = new QueryRecorder($spy->transport);
+        $recorder = new QueryRecorder($spy->transport, $this->makeTestEnricher());
         $recorder->record($this->fakeQueryEvent());
 
         $this->assertCount(1, $spy->capture->payloads);
@@ -116,7 +127,7 @@ class RecorderBatchingTest extends TestCase
         $spy    = $this->spyTransport();
         $buffer = new EventBuffer();
 
-        $recorder = new QueryRecorder($spy->transport, buffer: $buffer, batchingEnabled: true);
+        $recorder = new QueryRecorder($spy->transport, $this->makeTestEnricher(), buffer: $buffer, batchingEnabled: true);
         // threshold 100ms, query is only 50ms — should be skipped entirely
         $recorder->record($this->fakeQueryEvent('select 1', 50.0), thresholdMs: 100.0);
 
@@ -135,6 +146,7 @@ class RecorderBatchingTest extends TestCase
 
         $recorder = new OutgoingRequestRecorder(
             $spy->transport,
+            $this->makeTestEnricher(),
             ignoredHosts:    [],
             buffer:          $buffer,
             batchingEnabled: true,
@@ -154,6 +166,7 @@ class RecorderBatchingTest extends TestCase
 
         $recorder = new OutgoingRequestRecorder(
             $spy->transport,
+            $this->makeTestEnricher(),
             ignoredHosts:    [],
             buffer:          $buffer,
             batchingEnabled: false,
@@ -168,7 +181,7 @@ class RecorderBatchingTest extends TestCase
     public function test_outgoing_recorder_defaults_to_synchronous_without_buffer(): void
     {
         $spy      = $this->spyTransport();
-        $recorder = new OutgoingRequestRecorder($spy->transport);
+        $recorder = new OutgoingRequestRecorder($spy->transport, $this->makeTestEnricher());
         $recorder->record('POST', 'https://api.example.com/orders', 201, 120.0);
 
         $this->assertCount(1, $spy->capture->payloads);
@@ -185,6 +198,7 @@ class RecorderBatchingTest extends TestCase
 
         $recorder = new OutgoingRequestRecorder(
             $spy->transport,
+            $this->makeTestEnricher(),
             ignoredHosts:    ['api.example.com'],
             buffer:          $buffer,
             batchingEnabled: true,

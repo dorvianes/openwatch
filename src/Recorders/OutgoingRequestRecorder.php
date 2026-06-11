@@ -4,12 +4,14 @@ namespace Dorvianes\OpenWatch\Recorders;
 
 use Dorvianes\OpenWatch\Buffer\EventBuffer;
 use Dorvianes\OpenWatch\Support\EventTimestamp;
+use Dorvianes\OpenWatch\Support\UserContextEnricher;
 use Dorvianes\OpenWatch\Transport\HttpTransport;
 
 class OutgoingRequestRecorder
 {
     public function __construct(
         private HttpTransport $transport,
+        private UserContextEnricher $enricher,
         /** @var string[] */
         private array        $ignoredHosts    = [],
         private ?EventBuffer $buffer          = null,
@@ -63,11 +65,11 @@ class OutgoingRequestRecorder
                 // occurred_at reflects when the outgoing request started (event time), not send time
                 'occurred_at' => EventTimestamp::format($startTime),
                 'url'         => $parsed['safe_url'],
-                'meta'        => [
+                'meta'        => $this->enricher->enrich([
                     'scheme'   => $parsed['scheme'],
                     'app_name' => function_exists('config') ? config('app.name') : null,
                     'app_env'  => function_exists('config') ? config('app.env') : null,
-                ],
+                ]),
             ];
 
             if ($this->batchingEnabled && $this->buffer !== null) {

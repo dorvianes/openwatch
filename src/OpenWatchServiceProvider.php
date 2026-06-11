@@ -10,6 +10,7 @@ use Dorvianes\OpenWatch\Recorders\OutgoingRequestRecorder;
 use Dorvianes\OpenWatch\Recorders\QueryRecorder;
 use Dorvianes\OpenWatch\Recorders\RequestRecorder;
 use Dorvianes\OpenWatch\Support\BatchFlusher;
+use Dorvianes\OpenWatch\Support\UserContextEnricher;
 use Dorvianes\OpenWatch\Transport\HttpTransport;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\DB;
@@ -62,12 +63,16 @@ class OpenWatchServiceProvider extends ServiceProvider
             );
         });
 
+        $this->app->singleton(UserContextEnricher::class, function ($app) {
+            return new UserContextEnricher();
+        });
+
         $this->app->singleton(RequestRecorder::class, function ($app) {
-            return new RequestRecorder($app->make('openwatch.transport'));
+            return new RequestRecorder($app->make('openwatch.transport'), $app->make(UserContextEnricher::class));
         });
 
         $this->app->singleton(ExceptionRecorder::class, function ($app) {
-            return new ExceptionRecorder($app->make('openwatch.transport'));
+            return new ExceptionRecorder($app->make('openwatch.transport'), $app->make(UserContextEnricher::class));
         });
 
         $this->app->singleton(QueryRecorder::class, function ($app) {
@@ -75,6 +80,7 @@ class OpenWatchServiceProvider extends ServiceProvider
             $batchingEnabled = (bool) ($cfg['batching']['enabled'] ?? false);
             return new QueryRecorder(
                 $app->make('openwatch.transport'),
+                $app->make(UserContextEnricher::class),
                 buffer:          $batchingEnabled ? $app->make(EventBuffer::class) : null,
                 batchingEnabled: $batchingEnabled,
             );
@@ -86,6 +92,7 @@ class OpenWatchServiceProvider extends ServiceProvider
             $batchingEnabled = (bool) ($cfg['batching']['enabled'] ?? false);
             return new OutgoingRequestRecorder(
                 $app->make('openwatch.transport'),
+                $app->make(UserContextEnricher::class),
                 ignoredHosts:    $ignoredHosts,
                 buffer:          $batchingEnabled ? $app->make(EventBuffer::class) : null,
                 batchingEnabled: $batchingEnabled,

@@ -4,11 +4,26 @@ namespace Dorvianes\OpenWatch\Tests\Unit;
 
 use Dorvianes\OpenWatch\Buffer\EventBuffer;
 use Dorvianes\OpenWatch\Recorders\QueryRecorder;
+use Dorvianes\OpenWatch\Support\UserContextEnricher;
 use Dorvianes\OpenWatch\Transport\HttpTransport;
 use PHPUnit\Framework\TestCase;
 
 class QueryRecorderTest extends TestCase
 {
+    /**
+     * Build a test enricher that returns a fixed context array.
+     */
+    private function makeTestEnricher(?array $context = null): UserContextEnricher
+    {
+        return new class($context) extends UserContextEnricher {
+            public function __construct(private readonly ?array $context) {}
+            public function getUserContext(): array
+            {
+                return $this->context ?? ['user_id' => null, 'user_type' => null, 'ip' => null];
+            }
+        };
+    }
+
     /**
      * @return array{QueryRecorder, object}
      */
@@ -31,7 +46,9 @@ class QueryRecorderTest extends TestCase
             }
         };
 
-        return [new QueryRecorder($transport), $capture];
+        $enricher = $this->makeTestEnricher();
+
+        return [new QueryRecorder($transport, enricher: $enricher), $capture];
     }
 
     /**
@@ -158,7 +175,7 @@ class QueryRecorderTest extends TestCase
             }
         };
 
-        $recorder = new QueryRecorder($transport);
+        $recorder = new QueryRecorder($transport, $this->makeTestEnricher());
 
         // Must not throw
         $this->expectNotToPerformAssertions();
@@ -207,7 +224,7 @@ class QueryRecorderTest extends TestCase
         };
 
         $buffer   = new EventBuffer();
-        $recorder = new QueryRecorder($transport, buffer: $buffer, batchingEnabled: true);
+        $recorder = new QueryRecorder($transport, $this->makeTestEnricher(), buffer: $buffer, batchingEnabled: true);
 
         $noisySql = "select  *\n from orders where id in (?, ?, ?)";
         $recorder->record($this->fakeQueryEvent($noisySql));
@@ -232,7 +249,7 @@ class QueryRecorderTest extends TestCase
         };
 
         // Subclass that forces the normalizer step to throw
-        $recorder = new class($transport) extends QueryRecorder {
+        $recorder = new class($transport, $this->makeTestEnricher()) extends QueryRecorder {
             protected function normalizeSql(string $sql): string
             {
                 throw new \RuntimeException('normalizer exploded');
@@ -260,6 +277,44 @@ class QueryRecorderTest extends TestCase
             $value,
             'occurred_at must be an ISO-8601 string with timezone offset',
         );
+    }
+
+    // -------------------------------------------------------------------------
+    // User context enrichment
+    // -------------------------------------------------------------------------
+
+    public function test_meta_includes_user_context_fields(): void
+    {
+        $capture = new class {
+            public array $payloads = [];
+        };
+
+        $transport = new class($capture) extends HttpTransport {
+            public function __construct(private readonly object $capture) {}
+            public function send(array $payload): bool
+            {
+                $this->capture->payloads[] = $payload;
+                return true;
+            }
+        };
+
+        $enricher = $this->makeTestEnricher([
+            'user_id'   => '999',
+            'user_type' => 'App\Models\Member',
+            'ip'        => '192.168.50.1',
+        ]);
+
+        $recorder = new QueryRecorder($transport, enricher: $enricher);
+        $recorder->record($this->fakeQueryEvent());
+
+        $meta = $capture->payloads[0]['meta'];
+
+        $this->assertArrayHasKey('user_id', $meta);
+        $this->assertArrayHasKey('user_type', $meta);
+        $this->assertArrayHasKey('ip', $meta);
+        $this->assertSame('999', $meta['user_id']);
+        $this->assertSame('App\Models\Member', $meta['user_type']);
+        $this->assertSame('192.168.50.1', $meta['ip']);
     }
 
     private function assertFlatEventHasNoDeferredEnvelopeKeys(array $payload): void
