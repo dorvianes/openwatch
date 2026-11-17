@@ -114,7 +114,7 @@ class HttpTransport
         return [
             CURLOPT_URL               => rtrim($this->serverUrl, '/') . '/api/ingest',
             CURLOPT_POST              => true,
-            CURLOPT_POSTFIELDS        => json_encode($payload),
+            CURLOPT_POSTFIELDS        => json_encode($this->withoutNulls($payload)),
             CURLOPT_HTTPHEADER        => [
                 'Content-Type: application/json',
                 'Accept: application/json',
@@ -138,7 +138,10 @@ class HttpTransport
         return [
             CURLOPT_URL               => rtrim($this->serverUrl, '/') . '/api/ingest/batch',
             CURLOPT_POST              => true,
-            CURLOPT_POSTFIELDS        => json_encode(['events' => $events]),
+            CURLOPT_POSTFIELDS        => json_encode(['events' => array_map(
+                fn (array $event): array => $this->withoutNulls($event),
+                $events,
+            )]),
             CURLOPT_HTTPHEADER        => [
                 'Content-Type: application/json',
                 'Accept: application/json',
@@ -148,6 +151,21 @@ class HttpTransport
             CURLOPT_TIMEOUT_MS        => (int) ($this->timeout * 1000),
             CURLOPT_CONNECTTIMEOUT_MS => (int) ($this->connectTimeout * 1000),
         ];
+    }
+
+    /**
+     * Drop top-level null values before encoding.
+     *
+     * The ingest contract rejects explicit nulls on optional fields with a 422
+     * (e.g. `previous`, `snippet`, `request`, `ip`). Omitting them keeps the
+     * payload valid while preserving nested data untouched.
+     *
+     * @param  array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    private function withoutNulls(array $payload): array
+    {
+        return array_filter($payload, static fn (mixed $value): bool => $value !== null);
     }
 
     /**

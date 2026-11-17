@@ -409,6 +409,83 @@ class HttpTransportTest extends TestCase
     }
 
     // -------------------------------------------------------------------------
+    // Null normalization — the server rejects explicit nulls on optional fields
+    // -------------------------------------------------------------------------
+
+    private function spyForNullNormalization(): HttpTransport
+    {
+        return new class extends HttpTransport {
+            public function __construct()
+            {
+                parent::__construct(serverUrl: 'https://example.com', token: 'tok', timeout: 0.1);
+            }
+
+            public function singleOptions(array $payload): array
+            {
+                return $this->buildCurlOptions($payload);
+            }
+
+            public function batchOptions(array $events): array
+            {
+                return $this->buildBatchCurlOptions($events);
+            }
+        };
+    }
+
+    /**
+     * The server rejects null values on optional fields (422), so the transport
+     * MUST omit top-level nulls before encoding the single-event body.
+     */
+    public function test_send_omits_top_level_nulls_from_the_encoded_body(): void
+    {
+        $spy = $this->spyForNullNormalization();
+
+        $opts = $spy->singleOptions([
+            'type' => 'exception',
+            'class' => 'RuntimeException',
+            'message' => 'boom',
+            'ip' => null,
+            'snippet' => null,
+            'request' => null,
+            'previous' => null,
+            'meta' => ['app_name' => 'app', 'user_id' => null],
+        ]);
+
+        $decoded = json_decode($opts[CURLOPT_POSTFIELDS], true);
+
+        foreach (['ip', 'snippet', 'request', 'previous'] as $nullKey) {
+            $this->assertArrayNotHasKey($nullKey, $decoded, "[{$nullKey}] must not be sent as null");
+        }
+
+        // Non-null values and nested nulls are preserved untouched.
+        $this->assertSame('exception', $decoded['type']);
+        $this->assertSame('boom', $decoded['message']);
+        $this->assertNull($decoded['meta']['user_id']);
+    }
+
+    /**
+     * Each batch item is validated independently but the batch is all-or-nothing,
+     * so one explicit null must not be able to reject the whole batch.
+     */
+    public function test_send_batch_omits_top_level_nulls_from_each_event(): void
+    {
+        $spy = $this->spyForNullNormalization();
+
+        $opts = $spy->batchOptions([
+            ['type' => 'outgoing_request', 'host' => 'api.example.com', 'url' => null],
+            ['type' => 'query', 'sql' => 'select 1', 'connection' => null],
+        ]);
+
+        $decoded = json_decode($opts[CURLOPT_POSTFIELDS], true);
+
+        $this->assertSame(['events'], array_keys($decoded));
+        $this->assertArrayNotHasKey('url', $decoded['events'][0]);
+        $this->assertArrayNotHasKey('connection', $decoded['events'][1]);
+        $this->assertSame('api.example.com', $decoded['events'][0]['host']);
+        $this->assertSame('select 1', $decoded['events'][1]['sql']);
+    }
+
+    // -------------------------------------------------------------------------
     // Batch body shape — standalone, dedicated assertion (task 2.1)
     // -------------------------------------------------------------------------
 
