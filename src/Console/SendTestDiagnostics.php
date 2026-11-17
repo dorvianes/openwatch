@@ -89,7 +89,9 @@ final class SendTestDiagnostics
         $this->line('  Sending test event to: ' . rtrim($this->serverUrl, '/') . '/api/ingest');
 
         $payload = [
-            'type'             => 'test',
+            // The server accepts only request, exception, query and outgoing_request.
+            // A synthetic `request` exercises the same validation path as real telemetry.
+            'type'             => 'request',
             'method'           => 'GET',
             'path'             => '/openwatch-test',
             'host'             => 'cli',

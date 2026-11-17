@@ -75,6 +75,60 @@ class SendTestCommandTest extends TestCase
     }
 
     // -------------------------------------------------------------------------
+    // Payload contract — the server only accepts the four real event types
+    // -------------------------------------------------------------------------
+
+    /**
+     * The synthetic event must use an event type the server accepts
+     * (`request`), otherwise the documented onboarding check always fails
+     * with HTTP 422 and cannot diagnose connectivity at all.
+     */
+    public function test_test_payload_uses_an_accepted_event_type(): void
+    {
+        $captured = null;
+
+        $transport = new class ($captured) extends HttpTransport {
+            public function __construct(public mixed &$captured) {}
+
+            public function send(array $payload): bool
+            {
+                $this->captured = $payload;
+
+                return true;
+            }
+
+            public function lastHttpCode(): int
+            {
+                return 202;
+            }
+
+            public function lastCurlError(): string
+            {
+                return '';
+            }
+        };
+
+        $diag = new SendTestDiagnostics(
+            transport: $transport,
+            enabled: true,
+            serverUrl: 'https://openwatch.example.com',
+            token: 'tok_test_1234',
+            appName: 'TestApp',
+            appEnv: 'testing',
+            exceptionWired: true,
+        );
+
+        $diag->run();
+
+        $this->assertSame('request', $captured['type'], 'send-test must emit an accepted event type');
+        foreach (['method', 'path', 'status', 'duration_ms', 'occurred_at'] as $required) {
+            $this->assertArrayHasKey($required, $captured, "[{$required}] is required by the ingest contract");
+        }
+        $this->assertArrayNotHasKey('previous', $captured);
+        $this->assertArrayNotHasKey('payload', $captured);
+    }
+
+    // -------------------------------------------------------------------------
     // Scenario 1: Disabled package
     // -------------------------------------------------------------------------
 
