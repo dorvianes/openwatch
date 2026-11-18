@@ -194,9 +194,9 @@ The handler is deliberately conservative:
   snippet when less than 8 MiB of the memory limit is still free;
 - it never throws: if anything goes wrong, your app exits exactly as it would have.
 
-Known limitation: in long-lived workers (Octane, `queue:work`) a fatal inside a job
-fails that job without ending the process, so no shutdown handler runs. Capturing
-those needs per-job hooks.
+Known limitation: a fatal error ends the worker process, so in a queue worker or
+Octane the event is sent from a dying process — the payload is deliberately minimal
+and delivery is best-effort. There is no HTTP request to attach as context there.
 
 ### 5. Generate real telemetry
 
