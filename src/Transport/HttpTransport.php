@@ -6,6 +6,17 @@ use Throwable;
 
 class HttpTransport
 {
+    /**
+     * Default HTTP timeout in seconds for a single event delivery.
+     *
+     * Kept at 1.0 s because an exception payload (up to 30 trace frames plus a
+     * code snippet and the previous-exception chain) does not reliably reach a
+     * remote server over TLS within 100 ms — it was being aborted mid-flight and
+     * dropped with only a debug log. This constant is the single source of truth:
+     * config/openwatch.php and the service provider both fall back to it.
+     */
+    public const DEFAULT_TIMEOUT = 1.0;
+
     /** HTTP status code from the last send() call. 0 = no response (curl error / timeout). */
     private int $lastHttpCode = 0;
 
@@ -18,7 +29,7 @@ class HttpTransport
     public function __construct(
         private string $serverUrl,
         private string $token,
-        private float $timeout = 0.1,
+        private float $timeout = self::DEFAULT_TIMEOUT,
         ?float $connectTimeout = null,
     ) {
         // Clamp: connect timeout must never exceed total timeout

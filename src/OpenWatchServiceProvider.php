@@ -33,7 +33,7 @@ class OpenWatchServiceProvider extends ServiceProvider
             return new HttpTransport(
                 serverUrl:      $cfg['server_url'] ?? '',
                 token:          $cfg['token'] ?? '',
-                timeout:        (float) ($cfg['timeout'] ?? 0.1),
+                timeout:        (float) ($cfg['timeout'] ?? HttpTransport::DEFAULT_TIMEOUT),
                 connectTimeout: isset($cfg['connect_timeout']) ? (float) $cfg['connect_timeout'] : null,
             );
         });

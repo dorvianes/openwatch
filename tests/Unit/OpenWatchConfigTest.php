@@ -111,4 +111,30 @@ class OpenWatchConfigTest extends TestCase
 
         $this->assertSame(['openwatch.example.com:8080'], $hosts);
     }
+
+    // -------------------------------------------------------------------------
+    // Default HTTP timeout (backlog A3)
+    //
+    // The published config must expose the same default as the transport, so an
+    // app that never sets OPENWATCH_TIMEOUT gets a budget large enough for an
+    // exception payload. Single source of truth: HttpTransport::DEFAULT_TIMEOUT.
+    // -------------------------------------------------------------------------
+
+    public function test_published_config_default_timeout_matches_transport_default(): void
+    {
+        if (
+            getenv('OPENWATCH_TIMEOUT') !== false
+            || isset($_ENV['OPENWATCH_TIMEOUT'])
+            || isset($_SERVER['OPENWATCH_TIMEOUT'])
+        ) {
+            $this->markTestSkipped('OPENWATCH_TIMEOUT is set in this environment; the default cannot be observed.');
+        }
+
+        $config = require dirname(__DIR__, 2) . '/config/openwatch.php';
+
+        $this->assertSame(
+            \Dorvianes\OpenWatch\Transport\HttpTransport::DEFAULT_TIMEOUT,
+            $config['timeout'],
+        );
+    }
 }

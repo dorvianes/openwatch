@@ -652,4 +652,22 @@ class HttpTransportTest extends TestCase
             'TCP connection must have been accepted by the server — this test requires connect success, not connect failure',
         );
     }
+
+    // -------------------------------------------------------------------------
+    // Default timeout (backlog A3)
+    //
+    // 100 ms was too tight for an exception payload (30 frames + snippet +
+    // previous chain) delivered over TLS: the request was aborted before the
+    // server could answer, so the event vanished with only a debug log.
+    // The default is now 1.0 s. Explicit values still win — see the CURLOPT
+    // mapping tests above.
+    // -------------------------------------------------------------------------
+
+    public function test_default_timeout_is_one_second_when_not_configured(): void
+    {
+        $transport = new HttpTransport(serverUrl: 'https://example.com', token: 'tok');
+
+        $this->assertSame(1.0, $transport->timeout());
+        $this->assertSame(1000, $this->curlOptionsFor($transport)[CURLOPT_TIMEOUT_MS]);
+    }
 }

@@ -1,6 +1,7 @@
 <?php
 
 use Dorvianes\OpenWatch\Support\ConfigHelper;
+use Dorvianes\OpenWatch\Transport\HttpTransport;
 
 return [
     /*
@@ -47,11 +48,14 @@ return [
     | HTTP Timeout
     |--------------------------------------------------------------------------
     | Maximum seconds to wait for the OpenWatch server on each event delivery.
-    | Keep this low (≤ 0.5s) so a slow server never impacts response time.
+    | Exceptions are sent synchronously inside the failing request, and their
+    | payload (trace, snippet, previous chain) needs more than 100 ms to reach a
+    | remote server over TLS — a too-tight budget drops the event silently.
+    | Keep it as low as the payload allows; raise it for slow links.
     |
-    | Env: OPENWATCH_TIMEOUT  (default: 0.1 = 100ms)
+    | Env: OPENWATCH_TIMEOUT  (default: 1.0 = 1000ms)
     */
-    'timeout' => env('OPENWATCH_TIMEOUT', 0.1),
+    'timeout' => env('OPENWATCH_TIMEOUT', HttpTransport::DEFAULT_TIMEOUT),
 
     /*
     |--------------------------------------------------------------------------

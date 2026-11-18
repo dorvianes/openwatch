@@ -135,7 +135,7 @@ Open the OpenWatch server UI and:
 OPENWATCH_SERVER_URL=https://openwatch.yourdomain.com
 OPENWATCH_TOKEN=ow_live_xxxxxxxxxxxxxxxxxxxx   # ingestion key from step 1
 OPENWATCH_ENABLED=true
-OPENWATCH_TIMEOUT=0.1
+OPENWATCH_TIMEOUT=1.0
 ```
 
 ### 3. Verify connectivity
@@ -189,7 +189,7 @@ Visit any route in your app — the package will automatically capture the reque
 | `server_url` | `OPENWATCH_SERVER_URL` | `""` | Base URL of the OpenWatch server |
 | `token` | `OPENWATCH_TOKEN` | `""` | Ingestion key (per-environment) |
 | `enabled` | `OPENWATCH_ENABLED` | `true` | Master switch |
-| `timeout` | `OPENWATCH_TIMEOUT` | `0.1` | HTTP timeout in seconds (keep ≤ 0.5s) |
+| `timeout` | `OPENWATCH_TIMEOUT` | `1.0` | HTTP timeout in seconds. Exceptions are sent inside the failing request, so keep it as low as the payload allows and raise it for slow links |
 | `batching.enabled` | `OPENWATCH_BATCHING_ENABLED` | `false` | Buffer events and send as a single batch per request |
 | `batching.max_events` | `OPENWATCH_BATCHING_MAX_EVENTS` | `1000` | Maximum events held in memory per request |
 | `batching.async.enabled` | `OPENWATCH_ASYNC_ENABLED` | `false` | Dispatch a Queue Job instead of flushing in-process |
