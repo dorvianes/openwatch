@@ -65,6 +65,11 @@ final class RegistersExceptionReporting
                 }
 
                 $recorder->record($e, $request);
+
+                // Laravel's own shutdown handler turns a fatal error into a
+                // Throwable and reports it here. Mark it so FatalErrorCapture
+                // does not send the same failure a second time at shutdown.
+                FatalErrorCapture::markReported($e);
             } catch (\Throwable $owException) {
                 // Swallow every OpenWatch failure — the host app must never break.
                 // Emit a debug log so developers can diagnose misconfiguration

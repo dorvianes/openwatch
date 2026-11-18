@@ -176,6 +176,28 @@ return Application::configure(basePath: dirname(__DIR__))
 - Swallows every OpenWatch-side failure — your app's own error reporting continues normally.
 - Does **not** suppress Laravel's default reporting; your logs and error trackers still receive the exception.
 
+#### Fatal errors
+
+`report()` never fires for failures that kill the process — memory exhaustion,
+`max_execution_time`, parse errors — so the package also registers a shutdown
+handler that reads `error_get_last()`. Those events arrive as
+`class = Dorvianes\OpenWatch\Support\FatalErrorException` with `file` and `line`
+but **no trace**: a trace captured at shutdown only describes the shutdown
+handler, so it would be noise.
+
+The handler is deliberately conservative:
+
+- it is only registered when the package is enabled **and** configured;
+- it never reports the same failure twice — anything Laravel already reported is
+  skipped by `file:line`;
+- it holds a 64 KiB memory reserve, released at shutdown, and skips the code
+  snippet when less than 8 MiB of the memory limit is still free;
+- it never throws: if anything goes wrong, your app exits exactly as it would have.
+
+Known limitation: in long-lived workers (Octane, `queue:work`) a fatal inside a job
+fails that job without ending the process, so no shutdown handler runs. Capturing
+those needs per-job hooks.
+
 ### 5. Generate real telemetry
 
 Visit any route in your app — the package will automatically capture the request and send it to the server. No additional code is required.

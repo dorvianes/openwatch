@@ -10,6 +10,7 @@ use Dorvianes\OpenWatch\Recorders\OutgoingRequestRecorder;
 use Dorvianes\OpenWatch\Recorders\QueryRecorder;
 use Dorvianes\OpenWatch\Recorders\RequestRecorder;
 use Dorvianes\OpenWatch\Support\BatchFlusher;
+use Dorvianes\OpenWatch\Support\FatalErrorCapture;
 use Dorvianes\OpenWatch\Support\UserContextEnricher;
 use Dorvianes\OpenWatch\Transport\HttpTransport;
 use Illuminate\Routing\Router;
@@ -123,6 +124,32 @@ class OpenWatchServiceProvider extends ServiceProvider
         $this->bootQueryRecorder();
         $this->bootOutgoingRequestRecorder();
         $this->bootCliFlush();
+        $this->bootFatalErrorCapture();
+    }
+
+    /**
+     * Register the shutdown handler that captures PHP fatal errors.
+     *
+     * Memory exhaustion, `max_execution_time` and parse errors terminate the
+     * script without a Throwable, so Laravel's report() hook never sees them and
+     * those failures — a large share of real 500s — went unreported.
+     *
+     * Skipped entirely when the package is disabled or unconfigured, so an app
+     * that is not sending telemetry pays nothing.
+     */
+    private function bootFatalErrorCapture(): void
+    {
+        $cfg = $this->app['config']['openwatch'];
+
+        if (! ($cfg['enabled'] ?? true)) {
+            return;
+        }
+
+        if (empty($cfg['server_url']) || empty($cfg['token'])) {
+            return;
+        }
+
+        FatalErrorCapture::register();
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace Dorvianes\OpenWatch\Recorders;
 
 use Dorvianes\OpenWatch\Support\EventTimestamp;
+use Dorvianes\OpenWatch\Support\FatalErrorException;
 use Dorvianes\OpenWatch\Support\UserContextEnricher;
 use Dorvianes\OpenWatch\Transport\HttpTransport;
 use Illuminate\Http\Request;
@@ -22,7 +23,15 @@ class ExceptionRecorder
         private UserContextEnricher $enricher,
     ) {}
 
-    public function record(Throwable $exception, ?Request $request = null): void
+    /**
+     * Send an exception event.
+     *
+     * @param bool $includeContext Read the code snippet around the failing line.
+     *                             The fatal-error capture passes false when the
+     *                             process died of memory exhaustion and there is no
+     *                             budget left to allocate a snippet.
+     */
+    public function record(Throwable $exception, ?Request $request = null, bool $includeContext = true): void
     {
         // Capture event time immediately — before any processing that could add delay
         $capturedAt = EventTimestamp::now();
@@ -33,8 +42,12 @@ class ExceptionRecorder
             'message' => mb_substr($exception->getMessage(), 0, 500),
             'file'    => $exception->getFile(),
             'line'    => $exception->getLine(),
-            'trace'   => $this->buildTrace($exception),
-            'snippet' => $this->extractSnippet($exception->getFile(), $exception->getLine()),
+            // A fatal error is captured inside a shutdown handler, so its trace only
+            // describes the handler — the file/line pair is the real evidence.
+            'trace'   => $exception instanceof FatalErrorException ? [] : $this->buildTrace($exception),
+            'snippet' => $includeContext
+                ? $this->extractSnippet($exception->getFile(), $exception->getLine())
+                : null,
             'request' => $request !== null ? $this->buildRequestContext($request) : null,
             'previous' => $this->buildPreviousChain($exception),
             // occurred_at reflects when the exception was caught (event time), not send time
